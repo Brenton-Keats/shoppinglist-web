@@ -47,3 +47,6 @@ override.tf.json
 terraform.rc
 # Keep lock files under version control
 !.terraform.lock.hcl
+
+# Lambda build output
+lambda/dist
