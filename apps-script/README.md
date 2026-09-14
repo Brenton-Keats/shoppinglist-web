@@ -1,5 +1,36 @@
 # Shopping List PWA — Google Apps Script Backend
 
+> ## ⚠️ DEPRECATED — superseded by the AWS backend
+>
+> This backend has been replaced by the AWS Lambda + DynamoDB backend
+> (`../lambda`, provisioned via `../terraform`). It is retained only as the
+> **migration source** and for reference. Do not build new work on it.
+>
+> **Decommission only after the new backend is verified in production.** Tearing
+> this down before cutover is confirmed can cause data loss.
+>
+> ### Live cutover & verification checklist (requires your AWS account)
+>
+> 1. Apply `terraform/bootstrap`, then the `terraform/` main stack.
+> 2. Ensure every device has fully synced against this Apps Script backend.
+> 3. Run the migration: `lambda/scripts/migrate.mjs` (see `../lambda/README.md`).
+> 4. Set the GitHub Actions `PUBLIC_API_BASE_URL` variable to the Function URL
+>    and redeploy the frontend (Pages workflow).
+> 5. Verify against the live deployment:
+>    - Fresh client: loads full dataset (initial fetch).
+>    - Offline edit, then reconnect: change syncs up.
+>    - Two devices: concurrent edits converge (last-write-wins).
+>    - No CORS errors in the browser console from the Pages origin.
+> 6. Once verified, **decommission this backend** (below).
+>
+> ### Manual decommission steps (Google side)
+>
+> - Apps Script editor → **Deploy → Manage deployments** → archive/disable the
+>   web app deployment (this immediately stops serving the old URL).
+> - Optionally archive or delete the backing Google Spreadsheet.
+> - Remove the old `PUBLIC_APPS_SCRIPT_URL` GitHub secret if still present.
+> - Once confident, this `apps-script/` directory can be deleted from the repo.
+
 This directory contains the Google Apps Script backend for the Shopping List PWA.
 
 ## Architecture
