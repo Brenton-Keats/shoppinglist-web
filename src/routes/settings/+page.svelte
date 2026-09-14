@@ -9,7 +9,8 @@
 		ArrowUpDown,
 		Download,
 		Info,
-		Trash2
+		Trash2,
+		UserCircle
 	} from '@lucide/svelte';
 	import { preferencesStore } from '$lib/stores/preferences.svelte';
 	import { uiStore } from '$lib/stores/ui.svelte';
@@ -18,6 +19,8 @@
 	import { APP_CONFIG } from '$lib/config';
 	import SectionManager from '$lib/components/SectionManager.svelte';
 	import StoreManager from '$lib/components/StoreManager.svelte';
+	import SignIn from '$lib/components/SignIn.svelte';
+	import { authStore } from '$lib/auth/state.svelte';
 	import Toggle from '$lib/components/Toggle.svelte';
 	import ExportDialog from '$lib/components/ExportDialog.svelte';
 	import { getActiveList } from '$lib/db/queries';
@@ -121,6 +124,18 @@
 </script>
 
 <div class="flex flex-col gap-6 p-4">
+	{#if authStore.enabled}
+		<section class="flex flex-col gap-3">
+			<h2 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+				<UserCircle size={16} />
+				Account
+			</h2>
+			<div class="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+				<SignIn />
+			</div>
+		</section>
+	{/if}
+
 	<section class="flex flex-col gap-3">
 		<h2 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
 			<RefreshCw size={16} />

@@ -21,6 +21,25 @@ variable "api_key" {
   sensitive   = true
 }
 
+variable "google_client_id" {
+  description = <<-EOT
+    Google OAuth 2.0 Web client ID. When set, the Lambda verifies Google ID
+    tokens (Authorization: Bearer) against this audience instead of the shared
+    API key. Leave empty to keep API-key auth.
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "allowed_emails" {
+  description = <<-EOT
+    Allowlist of Google account emails permitted to access the API when Google
+    auth is enabled. Fails closed: empty list rejects everyone.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
 variable "allowed_origins" {
   description = <<-EOT
     Origins permitted by the Function URL CORS config. Include the GitHub Pages

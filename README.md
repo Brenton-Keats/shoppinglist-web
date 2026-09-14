@@ -1,6 +1,6 @@
 # Shopping List
 
-An offline-first, installable Progressive Web App (PWA) for managing shared shopping lists. Built with SvelteKit, Dexie (IndexedDB), and Google Apps Script backend.
+An offline-first, installable Progressive Web App (PWA) for managing shared shopping lists. Built with SvelteKit, Dexie (IndexedDB), and an AWS serverless backend (DynamoDB + Lambda), with infrastructure defined in Terraform.
 
 ## Features
 
@@ -17,8 +17,10 @@ An offline-first, installable Progressive Web App (PWA) for managing shared shop
 ## Tech Stack
 
 - **Frontend**: SvelteKit 5, TypeScript, Tailwind CSS v4
-- **Database**: Dexie (IndexedDB wrapper) for local storage
-- **Sync**: Google Apps Script REST API with Google Sheets backend
+- **Database**: Dexie (IndexedDB wrapper) for local storage; AWS DynamoDB server-side
+- **Sync**: AWS Lambda Function URL (Node.js) over CORS, replacing the former Google Apps Script API
+- **Infrastructure**: Terraform (S3-native state locking), deployed via GitHub Actions + AWS OIDC
+- **Auth**: shared API key or Google sign-in (see SECURITY.md)
 - **PWA**: vite-plugin-pwa (generateSW strategy) with Workbox
 - **Icons**: Lucide Svelte
 - **Build**: Vite 8 with static adapter
@@ -67,9 +69,11 @@ The build output is written to the `build/` directory as static files, ready for
 
 1. Push this repository to GitHub
 2. Go to **Settings** → **Pages** → set **Source** to **GitHub Actions**
-3. Go to **Settings** → **Secrets and variables** → **Actions** → add repository secrets:
-   - `PUBLIC_APPS_SCRIPT_URL` — your deployed Apps Script web app URL
-   - `PUBLIC_API_KEY` — shared API key (must match Apps Script's Script Properties)
+3. Go to **Settings** → **Secrets and variables** → **Actions** and add:
+   - Variable `PUBLIC_API_BASE_URL` — the Lambda Function URL (Terraform output `function_url`)
+   - Variable `PUBLIC_GOOGLE_CLIENT_ID` — optional; set to enable Google sign-in
+   - Secret `API_KEY` — shared API key (must match Terraform `api_key`); ignored when Google auth is enabled
+   (The Terraform workflow also needs `AWS_ROLE_ARN`, `AWS_REGION`, `TF_STATE_BUCKET`, `ALLOWED_ORIGINS` — see `.github/workflows/terraform.yml`.)
 4. Push to `main` (or trigger workflow manually) — the Actions workflow builds and deploys automatically
 
 #### Netlify / Vercel
@@ -86,16 +90,19 @@ Copy the contents of the `build/` directory to your web server's document root. 
 
 ### Local Development
 
-Copy `.env.example` to `.env` and fill in your Apps Script URL:
+Copy `.env.example` to `.env` and fill in your API base URL:
 
 ```bash
 cp .env.example .env
 ```
 
 ```env
-# Required
-PUBLIC_APPS_SCRIPT_URL=https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec
-PUBLIC_API_KEY=your-shared-api-key
+# Required — the Lambda Function URL (Terraform output `function_url`)
+PUBLIC_API_BASE_URL=https://YOUR_FUNCTION_URL.lambda-url.<region>.on.aws/
+
+# Auth — choose ONE:
+PUBLIC_API_KEY=your-shared-api-key      # API-key mode (must match Terraform api_key)
+PUBLIC_GOOGLE_CLIENT_ID=                 # Google mode (set to your OAuth Web client ID)
 
 # Optional — these fall back to defaults
 PUBLIC_APP_NAME=Shopping List
@@ -106,27 +113,24 @@ PUBLIC_APP_VERSION=1.0.0
 
 ### Production (GitHub Pages)
 
-For CI deployment, variables are injected from **GitHub repository secrets** (see [GitHub Pages deployment](#github-pages-recommended) above). Do not create a `.env` file in the repo for production — the build reads from `secrets.PUBLIC_APPS_SCRIPT_URL` and `secrets.PUBLIC_API_KEY` in the Actions workflow.
+For CI deployment, values are injected from **GitHub Actions variables/secrets** (see [GitHub Pages deployment](#github-pages-recommended) above). Do not create a `.env` file in the repo for production — the build reads `vars.PUBLIC_API_BASE_URL`, `vars.PUBLIC_GOOGLE_CLIENT_ID`, and `secrets.API_KEY` in the Actions workflow.
 
 ## Security
 
-Authentication uses a shared API key. See `SECURITY.md` for the full threat model and future hardening options.
+Authentication is a shared API key or Google sign-in with an email allowlist. See `SECURITY.md` for the full threat model and configuration.
 
-## Google Apps Script Deployment
+## AWS Backend (DynamoDB + Lambda)
 
-The backend runs on Google Apps Script with Google Sheets as the data store.
+The backend is an AWS Lambda (Node.js) fronted by a Lambda Function URL, storing data in a DynamoDB single table. All infrastructure is defined in Terraform.
 
-### Setup
+### Setup outline
 
-1. Create a new Google Spreadsheet
-2. Go to **Extensions** → **Apps Script** (this binds the script to the sheet)
-3. Copy the code from the `apps-script/` directory into the editor
-4. Run `initializeSpreadsheet()` to set up sheets and headers
-5. Set Script Properties: **Project Settings** → **Script Properties** → add `API_KEY`
-6. Deploy as a web app (**Execute as: Me**, **Who has access: Anyone**)
-7. Copy the deployment URL to your `.env` file and GitHub secrets
+1. **Bootstrap** (once): `cd terraform/bootstrap && terraform apply` — creates the S3 state bucket, GitHub OIDC provider, and CI role. See `terraform/bootstrap/README.md`.
+2. **Main stack**: `cd terraform && terraform init -backend-config=... && terraform apply` — creates DynamoDB, the Lambda, and the Function URL. See `terraform/README.md`.
+3. **Migrate data** (once): run `lambda/scripts/migrate.mjs` to copy existing data from the old Apps Script backend into DynamoDB. See `lambda/README.md`.
+4. **Wire the frontend**: set `PUBLIC_API_BASE_URL` (the `function_url` output) as a GitHub Actions variable.
 
-See `apps-script/README.md` for detailed deployment instructions.
+CI (`.github/workflows/terraform.yml`) plans on PRs and applies on `main` via GitHub OIDC (no long-lived AWS keys). The former `apps-script/` backend is retained for reference only.
 
 ## PWA Install Instructions
 
@@ -153,8 +157,8 @@ See `apps-script/README.md` for detailed deployment instructions.
 ## Architecture
 
 ```
-Server (Google Sheets + Apps Script)
-    ↓ raw JSON (may have type mismatches from Sheets)
+Server (AWS Lambda Function URL + DynamoDB)
+    ↓ raw JSON
 normalizeArray()  ←── single ingestion boundary
     ↓ canonical TypeScript types
 IndexedDB (Dexie)
@@ -182,7 +186,9 @@ Key boundaries:
 
 ```
 shoppinglist-web/
-├── apps-script/          # Google Apps Script backend code
+├── apps-script/          # Legacy Google Apps Script backend (retained for reference)
+├── lambda/               # AWS Lambda sync backend (TypeScript) + migration script
+├── terraform/            # Infrastructure as Code (bootstrap + main stack)
 ├── scripts/             # Build utilities (icon generation)
 ├── src/
 │   ├── app.html         # HTML template with PWA meta tags

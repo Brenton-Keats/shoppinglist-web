@@ -40,7 +40,10 @@ jobs:
           # terraform apply. Replaces the former PUBLIC_APPS_SCRIPT_URL.
           PUBLIC_API_BASE_URL: ${{ vars.PUBLIC_API_BASE_URL }}
           # Same shared key the Lambda validates (terraform.yml -> API_KEY secret).
+          # Ignored by the app when PUBLIC_GOOGLE_CLIENT_ID is set.
           PUBLIC_API_KEY: ${{ secrets.API_KEY }}
+          # Optional: enable Google sign-in (must match Terraform google_client_id).
+          PUBLIC_GOOGLE_CLIENT_ID: ${{ vars.PUBLIC_GOOGLE_CLIENT_ID }}
           PUBLIC_APP_NAME: ${{ vars.PUBLIC_APP_NAME || 'Shopping List' }}
           PUBLIC_APP_VERSION: ${{ vars.PUBLIC_APP_VERSION || '1.0.0' }}
         run: npm run build

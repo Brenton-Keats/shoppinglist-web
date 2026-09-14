@@ -9,6 +9,8 @@ name: Terraform
 #     AWS_REGION         e.g. ap-southeast-2  (must match bootstrap)
 #     TF_STATE_BUCKET    state bucket name    (bootstrap output state_bucket_name)
 #     ALLOWED_ORIGINS    JSON array string, e.g. ["https://user.github.io","http://localhost:5173"]
+#     GOOGLE_CLIENT_ID   (optional) Google OAuth Web client ID to enable Google auth
+#     ALLOWED_EMAILS     (optional) JSON array string of allowlisted emails
 #   Secrets:
 #     API_KEY            shared API key the Lambda validates ("" for open access).
 #                        The SAME secret is injected into the frontend build
@@ -47,6 +49,10 @@ jobs:
       TF_VAR_aws_region: ${{ vars.AWS_REGION }}
       TF_VAR_api_key: ${{ secrets.API_KEY }}
       TF_VAR_allowed_origins: ${{ vars.ALLOWED_ORIGINS }}
+      # Google auth (optional). When GOOGLE_CLIENT_ID is set, the Lambda verifies
+      # Google ID tokens + this email allowlist instead of the shared API key.
+      TF_VAR_google_client_id: ${{ vars.GOOGLE_CLIENT_ID }}
+      TF_VAR_allowed_emails: ${{ vars.ALLOWED_EMAILS }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5

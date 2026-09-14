@@ -17,10 +17,15 @@
 	import { preferencesStore } from '$lib/stores/preferences.svelte';
 	import { checkSyncNeededOnStartup } from '$lib/sync/scheduler';
 	import { syncStateStore } from '$lib/sync/state.svelte';
+	import { initAuth } from '$lib/auth';
 
 	let cleanupConnectivity: (() => void) | null = null;
 
 	onMount(async () => {
+		// Initialise auth (Google Identity Services in Google mode; no-op for
+		// API-key mode) before any sync attempts.
+		await initAuth();
+
 		// Wait for preferences to load (they determine sync mode/interval)
 		await waitForPreferences();
 

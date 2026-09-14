@@ -133,7 +133,11 @@ resource "aws_lambda_function" "api" {
   environment {
     variables = {
       TABLE_NAME = aws_dynamodb_table.data.name
-      API_KEY    = var.api_key
+      # Shared API key (used when GOOGLE_CLIENT_ID is empty).
+      API_KEY = var.api_key
+      # Google auth (takes precedence when GOOGLE_CLIENT_ID is set).
+      GOOGLE_CLIENT_ID = var.google_client_id
+      ALLOWED_EMAILS   = join(",", var.allowed_emails)
     }
   }
 

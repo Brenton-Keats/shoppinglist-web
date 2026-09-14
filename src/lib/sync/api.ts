@@ -1,13 +1,16 @@
 /**
- * API client for the Google Apps Script backend.
+ * API client for the AWS Lambda sync backend (Function URL).
  *
- * Authentication: A shared API key is passed as a query parameter (?key=...)
- * on every request. The key is baked into the frontend build from the
- * PUBLIC_API_KEY environment variable (sourced from GitHub Secrets in CI,
- * or .env locally). See SECURITY.md for the full threat model.
+ * Authentication is dual-mode (see $lib/auth):
+ *   - Google mode: an Authorization Bearer ID token.
+ *   - API-key mode: the shared key as a ?key= query param (+ body apiKey on
+ *     POST), matching the original behaviour.
+ * CORS is configured on the Function URL, so requests use application/json.
+ * See SECURITY.md for the full threat model.
  */
 
 import { ENV } from '$lib/config/env';
+import { resolveRequestAuth } from '$lib/auth';
 import type { List, Section, Store, Product, ListItem, Setting } from '$lib/types';
 
 const REQUEST_TIMEOUT_MS = 30000;
@@ -49,7 +52,7 @@ export interface SubmitChangesResponse {
 }
 
 export interface ApiError {
-	type: 'network' | 'timeout' | 'http' | 'cors' | 'parse' | 'unknown';
+	type: 'network' | 'timeout' | 'http' | 'cors' | 'parse' | 'auth' | 'unknown';
 	status?: number;
 	message: string;
 }
@@ -103,6 +106,10 @@ function handleFetchError(error: unknown): ApiErrorImpl {
 		return error;
 	}
 
+	if (error instanceof Error && error.message === 'Sign in required') {
+		return new ApiErrorImpl('auth', error.message);
+	}
+
 	if (error instanceof TypeError) {
 		if (isCorsError(error)) {
 			return new ApiErrorImpl('cors', 'CORS error: unable to reach server', undefined);
@@ -119,17 +126,18 @@ function handleFetchError(error: unknown): ApiErrorImpl {
 
 export async function fetchServerData(): Promise<ServerDataResponse> {
 	try {
-		// Attach API key as query param for server-side validation
-		const url = new URL(ENV.PUBLIC_APPS_SCRIPT_URL);
-		if (ENV.PUBLIC_API_KEY) {
-			url.searchParams.set('key', ENV.PUBLIC_API_KEY);
+		const auth = resolveRequestAuth();
+		const url = new URL(ENV.PUBLIC_API_BASE_URL);
+		if (auth.queryKey) {
+			url.searchParams.set('key', auth.queryKey);
 		}
 
 		const response = await withTimeout(
 			fetch(url.toString(), {
 				method: 'GET',
 				headers: {
-					Accept: 'application/json'
+					Accept: 'application/json',
+					...auth.headers
 				}
 			}),
 			REQUEST_TIMEOUT_MS
@@ -152,21 +160,25 @@ export async function fetchServerData(): Promise<ServerDataResponse> {
 
 export async function submitChanges(params: SubmitChangesParams): Promise<SubmitChangesResponse> {
 	try {
-		// API key in both query param and body provides redundancy —
-		// the server checks query param first, body as fallback.
-		const url = new URL(ENV.PUBLIC_APPS_SCRIPT_URL);
-		if (ENV.PUBLIC_API_KEY) {
-			url.searchParams.set('key', ENV.PUBLIC_API_KEY);
+		const auth = resolveRequestAuth();
+		const url = new URL(ENV.PUBLIC_API_BASE_URL);
+		if (auth.queryKey) {
+			url.searchParams.set('key', auth.queryKey);
 		}
+
+		// Function URL CORS allows application/json; the shared key (API-key
+		// mode) is also mirrored into the body as a fallback.
+		const body = auth.bodyApiKey ? { ...params, apiKey: auth.bodyApiKey } : { ...params };
 
 		const response = await withTimeout(
 			fetch(url.toString(), {
 				method: 'POST',
 				headers: {
-					'Content-Type': 'text/plain',
-					Accept: 'application/json'
+					'Content-Type': 'application/json',
+					Accept: 'application/json',
+					...auth.headers
 				},
-				body: JSON.stringify({ ...params, apiKey: ENV.PUBLIC_API_KEY })
+				body: JSON.stringify(body)
 			}),
 			REQUEST_TIMEOUT_MS
 		);

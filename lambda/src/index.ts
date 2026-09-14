@@ -5,6 +5,7 @@ import type {
   LambdaFunctionURLEvent,
 } from 'aws-lambda';
 import { createApiKeyAuthenticator, type Authenticator } from './auth';
+import { createGoogleAuthenticator } from './googleAuth';
 import { DynamoStore } from './dynamoStore';
 import { handleGetData, handlePostSync } from './handlers';
 import type { Store } from './store';
@@ -14,6 +15,25 @@ import type { SyncRequest } from './types';
 
 const TABLE_NAME = process.env.TABLE_NAME ?? '';
 const API_KEY = process.env.API_KEY;
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const ALLOWED_EMAILS = (process.env.ALLOWED_EMAILS ?? '')
+  .split(',')
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
+
+/**
+ * Selects the auth scheme: Google ID-token verification when GOOGLE_CLIENT_ID
+ * is configured (fails closed on an empty allowlist), otherwise the shared API
+ * key (open when unset). Built once and reused across warm invocations.
+ */
+function buildAuthenticator(): Authenticator {
+  if (GOOGLE_CLIENT_ID) {
+    return createGoogleAuthenticator({ clientId: GOOGLE_CLIENT_ID, allowedEmails: ALLOWED_EMAILS });
+  }
+  return createApiKeyAuthenticator(API_KEY);
+}
+
+const authenticate = buildAuthenticator();
 
 const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
   marshallOptions: { removeUndefinedValues: true },
@@ -114,6 +134,5 @@ export async function handler(
   event: LambdaFunctionURLEvent,
 ): Promise<APIGatewayProxyStructuredResultV2> {
   const store = new DynamoStore(ddbDocClient, TABLE_NAME);
-  const authenticate = createApiKeyAuthenticator(API_KEY);
   return handleRequest(store, authenticate, normalizeEvent(event));
 }

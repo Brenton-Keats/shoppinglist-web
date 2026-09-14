@@ -5,7 +5,16 @@ project_name = "shoppinglist"
 
 # Shared API key the Lambda validates. Leave "" for open access during setup.
 # Generate with: openssl rand -hex 32
+# Ignored when google_client_id is set.
 api_key = ""
+
+# Google auth (optional). When google_client_id is set, the Lambda verifies
+# Google ID tokens against this client ID + email allowlist instead of the key.
+google_client_id = ""
+allowed_emails   = [
+  # "you@gmail.com",
+  # "housemate@gmail.com",
+]
 
 # Origins allowed by the Function URL CORS config.
 # Include your GitHub Pages origin and local dev.
