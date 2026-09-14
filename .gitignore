@@ -50,3 +50,7 @@ terraform.rc
 
 # Lambda build output
 lambda/dist
+
+# Terraform build artifacts & local backend config
+terraform/.build/
+backend.hcl

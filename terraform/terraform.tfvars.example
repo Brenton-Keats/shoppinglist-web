@@ -1,0 +1,19 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+
+aws_region   = "ap-southeast-2"
+project_name = "shoppinglist"
+
+# Shared API key the Lambda validates. Leave "" for open access during setup.
+# Generate with: openssl rand -hex 32
+api_key = ""
+
+# Origins allowed by the Function URL CORS config.
+# Include your GitHub Pages origin and local dev.
+allowed_origins = [
+  "https://YOUR_GITHUB_USER.github.io",
+  "http://localhost:5173",
+]
+
+# Optional cost-safety alarm tuning.
+# invocation_alarm_threshold = 50000
+# alarm_sns_topic_arn        = "arn:aws:sns:ap-southeast-2:123456789012:alerts"
