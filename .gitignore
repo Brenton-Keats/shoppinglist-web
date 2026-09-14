@@ -29,3 +29,21 @@ vite.config.ts.timestamp-*
 # Other
 .playwright-mcp
 .sisyphus
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+# Keep lock files under version control
+!.terraform.lock.hcl
