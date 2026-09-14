@@ -67,6 +67,29 @@ npm test            # vitest (26 tests, in-memory)
 npm run build       # tsc -> dist/  (packaged by Terraform)
 ```
 
+## Data migration (one-off)
+
+`scripts/migrate.mjs` copies the existing Google Apps Script dataset into
+DynamoDB. Run it once after the main Terraform stack is applied and before
+cutting the frontend over:
+
+```bash
+cd lambda
+npm ci   # ensures the AWS SDK is available to the script
+
+SOURCE_URL="https://script.google.com/macros/s/XXX/exec" \
+SOURCE_API_KEY="the-shared-key" \
+TABLE_NAME="$(terraform -chdir=../terraform output -raw table_name)" \
+AWS_REGION="ap-southeast-2" \
+npm run migrate -- --dry-run     # inspect counts first, then drop --dry-run
+```
+
+It upserts all entities + settings and seeds the revision counter to the
+source `serverRevision` (idempotent — safe to re-run). The change-log history is
+**not** migrated, so make sure every device is fully synced before cutover;
+a device that was behind should clear its local data to trigger a fresh initial
+fetch. AWS credentials come from the standard SDK credential chain.
+
 ## Runtime
 
 - Runtime: `nodejs24.x`
