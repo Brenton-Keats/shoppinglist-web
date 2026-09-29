@@ -165,6 +165,18 @@ resource "aws_lambda_function_url" "api" {
   }
 }
 
+# Public invoke permission for the Function URL. aws_lambda_function_url does
+# NOT create this automatically; without it a NONE-auth URL returns 403 on
+# every request. The function_url_auth_type condition scopes the grant to
+# Function URL invocations only.
+resource "aws_lambda_permission" "public_url" {
+  statement_id           = "FunctionURLAllowPublicAccess"
+  action                 = "lambda:InvokeFunctionUrl"
+  function_name          = aws_lambda_function.api.function_name
+  principal              = "*"
+  function_url_auth_type = "NONE"
+}
+
 # ─── Cost-safety alarm ───────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_metric_alarm" "invocations" {
