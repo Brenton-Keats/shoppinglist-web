@@ -70,11 +70,11 @@ The build output is written to the `build/` directory as static files, ready for
 1. Push this repository to GitHub
 2. Go to **Settings** → **Pages** → set **Source** to **GitHub Actions**
 3. Go to **Settings** → **Secrets and variables** → **Actions** and add:
-   - Variable `PUBLIC_API_BASE_URL` — the Lambda Function URL (Terraform output `function_url`)
-   - Variable `PUBLIC_GOOGLE_CLIENT_ID` — optional; set to enable Google sign-in
-   - Secret `API_KEY` — shared API key (must match Terraform `api_key`); ignored when Google auth is enabled
-   (The Terraform workflow also needs `AWS_ROLE_ARN`, `AWS_REGION`, `TF_STATE_BUCKET`, `ALLOWED_ORIGINS` — see `.github/workflows/terraform.yml`.)
-4. Push to `main` (or trigger workflow manually) — the Actions workflow builds and deploys automatically
+   - Variable `PUBLIC_GOOGLE_CLIENT_ID` — Google OAuth Web client ID (enables Google sign-in)
+   - Variables `GOOGLE_CLIENT_ID` + `ALLOWED_EMAILS` — used by the Terraform workflow (server-side Google auth)
+   - `PUBLIC_API_BASE_URL` and `ALLOWED_ORIGINS` are **inferred automatically** — the Pages build reads the Function URL from the Terraform run's outputs artifact, and CORS origins are derived from the repo owner. No need to set them.
+   - Create a **`terraform-apply` environment** (branch-protected to `main`); the apply job requires it. See `.github/workflows/terraform.yml` and `LZ-ACCESS-DECISION.md`.
+4. Push to `main` — the Terraform workflow applies, then the Pages workflow builds and deploys automatically
 
 #### Netlify / Vercel
 
@@ -113,7 +113,7 @@ PUBLIC_APP_VERSION=1.0.0
 
 ### Production (GitHub Pages)
 
-For CI deployment, values are injected from **GitHub Actions variables/secrets** (see [GitHub Pages deployment](#github-pages-recommended) above). Do not create a `.env` file in the repo for production — the build reads `vars.PUBLIC_API_BASE_URL`, `vars.PUBLIC_GOOGLE_CLIENT_ID`, and `secrets.API_KEY` in the Actions workflow.
+For CI deployment, do not create a `.env` file for production. The Pages build reads `PUBLIC_API_BASE_URL` from the Terraform run's outputs artifact, `PUBLIC_GOOGLE_CLIENT_ID` from an Actions variable, and `API_KEY` from a secret (unused in Google mode).
 
 ## Security
 
@@ -126,11 +126,10 @@ The backend is an AWS Lambda (Node.js) fronted by a Lambda Function URL, storing
 ### Setup outline
 
 1. **Bootstrap** (once): `cd terraform/bootstrap && terraform apply` — creates the S3 state bucket, GitHub OIDC provider, and CI role. See `terraform/bootstrap/README.md`.
-2. **Main stack**: `cd terraform && terraform init -backend-config=... && terraform apply` — creates DynamoDB, the Lambda, and the Function URL. See `terraform/README.md`.
+2. **Main stack**: `cd terraform && terraform init && terraform apply` — creates DynamoDB, the Lambda, and the Function URL (state backend is preconfigured). See `terraform/README.md`.
 3. **Migrate data** (once): run `lambda/scripts/migrate.mjs` to copy existing data from the old Apps Script backend into DynamoDB. See `lambda/README.md`.
-4. **Wire the frontend**: set `PUBLIC_API_BASE_URL` (the `function_url` output) as a GitHub Actions variable.
 
-CI (`.github/workflows/terraform.yml`) plans on PRs and applies on `main` via GitHub OIDC (no long-lived AWS keys). The former `apps-script/` backend is retained for reference only.
+CI (`.github/workflows/terraform.yml`) plans on PRs and applies on `main` via GitHub OIDC → landing-zone roles (no long-lived AWS keys), then the Pages workflow deploys the frontend using the Function URL from the Terraform outputs artifact. The former `apps-script/` backend is retained for reference only.
 
 ## PWA Install Instructions
 

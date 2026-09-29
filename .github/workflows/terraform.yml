@@ -5,18 +5,22 @@ name: Terraform
 # state access); the AWS provider assumes the Sandbox target role for resource
 # operations (see terraform/versions.tf + backend.tf).
 #
-#   Plan (PR):   OIDC[sub repo:...:pull_request]            -> GitHubActionsDeploymentPlan  -> TerraformShoppingListWebPlan  (ReadOnlyAccess)
-#   Apply (main):OIDC[sub repo:...:environment:terraform-apply] -> GitHubActionsDeploymentApply -> TerraformShoppingListWebApply (AdministratorAccess)
+#   Plan (PR):   OIDC[sub repo:...:pull_request]                 -> GitHubActionsDeploymentPlan  -> TerraformShoppingListWebPlan  (ReadOnlyAccess)
+#   Apply (main):OIDC[sub repo:...:environment:terraform-apply]  -> GitHubActionsDeploymentApply -> TerraformShoppingListWebApply (AdministratorAccess)
 #
 # The apply broker ONLY trusts the environment subject, so the apply job MUST
 # declare `environment: terraform-apply` (configure that environment with
 # main-branch protection + required reviewers in repo settings).
 #
+# ALLOWED_ORIGINS is derived from the repo owner (GitHub Pages origin) — no
+# variable needed. The apply job publishes terraform outputs as an artifact that
+# the Pages workflow consumes (so the Function URL is never stored as a variable).
+#
 # Required GitHub Actions configuration:
-#   Variables: ALLOWED_ORIGINS (JSON array), GOOGLE_CLIENT_ID, ALLOWED_EMAILS (JSON array)
+#   Variables: GOOGLE_CLIENT_ID, ALLOWED_EMAILS (JSON array)
 #   Secret:    API_KEY (unused in Google-auth mode; may be "")
-# Note: the LZ requires server-side Google ID-token validation for the public
-# Function URL, so set GOOGLE_CLIENT_ID + ALLOWED_EMAILS (not the shared key).
+# The LZ requires server-side Google ID-token validation for the public Function
+# URL, so set GOOGLE_CLIENT_ID + ALLOWED_EMAILS (not the shared key).
 
 on:
   push:
@@ -44,11 +48,8 @@ env:
   AWS_REGION: ap-southeast-2
   PLAN_BROKER_ARN: arn:aws:iam::029678959044:role/GitHubActionsDeploymentPlan
   APPLY_BROKER_ARN: arn:aws:iam::029678959044:role/GitHubActionsDeploymentApply
-  PLAN_TARGET_ARN: arn:aws:iam::132848804640:role/TerraformShoppingListWebPlan
-  APPLY_TARGET_ARN: arn:aws:iam::132848804640:role/TerraformShoppingListWebApply
   # Terraform variable inputs (read automatically as TF_VAR_*).
   TF_VAR_aws_region: ap-southeast-2
-  TF_VAR_allowed_origins: ${{ vars.ALLOWED_ORIGINS }}
   TF_VAR_google_client_id: ${{ vars.GOOGLE_CLIENT_ID }}
   TF_VAR_allowed_emails: ${{ vars.ALLOWED_EMAILS }}
   TF_VAR_api_key: ${{ secrets.API_KEY }}
@@ -66,6 +67,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Derive allowed origins (GitHub Pages origin + local dev)
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "TF_VAR_allowed_origins=[\"https://${owner}.github.io\",\"http://localhost:5173\"]" >> "$GITHUB_ENV"
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -119,6 +125,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Derive allowed origins (GitHub Pages origin + local dev)
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "TF_VAR_allowed_origins=[\"https://${owner}.github.io\",\"http://localhost:5173\"]" >> "$GITHUB_ENV"
+
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
@@ -155,3 +166,13 @@ jobs:
 
       - name: Terraform Apply
         run: terraform apply -input=false tfplan
+
+      - name: Export Terraform outputs
+        run: terraform output -json > tf-outputs.json
+
+      - name: Upload Terraform outputs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tf-outputs
+          path: terraform/tf-outputs.json
+          retention-days: 7
