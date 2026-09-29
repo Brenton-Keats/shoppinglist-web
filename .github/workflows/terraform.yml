@@ -1,20 +1,22 @@
 name: Terraform
 
-# Plans on PRs, applies on push to main. Authenticates to AWS via the GitHub
-# OIDC role created by the bootstrap stack (no long-lived access keys).
+# Identity path (landing zone): GitHub OIDC -> management-account broker role
+# -> Sandbox target role. CI authenticates as the broker (which owns Terraform
+# state access); the AWS provider assumes the Sandbox target role for resource
+# operations (see terraform/versions.tf + backend.tf).
 #
-# Required GitHub Actions configuration (Settings -> Secrets and variables):
-#   Variables:
-#     AWS_ROLE_ARN       ARN of the CI role   (bootstrap output ci_role_arn)
-#     AWS_REGION         e.g. ap-southeast-2  (must match bootstrap)
-#     TF_STATE_BUCKET    state bucket name    (bootstrap output state_bucket_name)
-#     ALLOWED_ORIGINS    JSON array string, e.g. ["https://user.github.io","http://localhost:5173"]
-#     GOOGLE_CLIENT_ID   (optional) Google OAuth Web client ID to enable Google auth
-#     ALLOWED_EMAILS     (optional) JSON array string of allowlisted emails
-#   Secrets:
-#     API_KEY            shared API key the Lambda validates ("" for open access).
-#                        The SAME secret is injected into the frontend build
-#                        (deploy.yml -> PUBLIC_API_KEY) so client and server match.
+#   Plan (PR):   OIDC[sub repo:...:pull_request]            -> GitHubActionsDeploymentPlan  -> TerraformShoppingListWebPlan  (ReadOnlyAccess)
+#   Apply (main):OIDC[sub repo:...:environment:terraform-apply] -> GitHubActionsDeploymentApply -> TerraformShoppingListWebApply (AdministratorAccess)
+#
+# The apply broker ONLY trusts the environment subject, so the apply job MUST
+# declare `environment: terraform-apply` (configure that environment with
+# main-branch protection + required reviewers in repo settings).
+#
+# Required GitHub Actions configuration:
+#   Variables: ALLOWED_ORIGINS (JSON array), GOOGLE_CLIENT_ID, ALLOWED_EMAILS (JSON array)
+#   Secret:    API_KEY (unused in Google-auth mode; may be "")
+# Note: the LZ requires server-side Google ID-token validation for the public
+# Function URL, so set GOOGLE_CLIENT_ID + ALLOWED_EMAILS (not the shared key).
 
 on:
   push:
@@ -31,28 +33,36 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
   id-token: write # required for OIDC
+  contents: read
 
 concurrency:
   group: terraform-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  AWS_REGION: ap-southeast-2
+  PLAN_BROKER_ARN: arn:aws:iam::029678959044:role/GitHubActionsDeploymentPlan
+  APPLY_BROKER_ARN: arn:aws:iam::029678959044:role/GitHubActionsDeploymentApply
+  PLAN_TARGET_ARN: arn:aws:iam::132848804640:role/TerraformShoppingListWebPlan
+  APPLY_TARGET_ARN: arn:aws:iam::132848804640:role/TerraformShoppingListWebApply
+  # Terraform variable inputs (read automatically as TF_VAR_*).
+  TF_VAR_aws_region: ap-southeast-2
+  TF_VAR_allowed_origins: ${{ vars.ALLOWED_ORIGINS }}
+  TF_VAR_google_client_id: ${{ vars.GOOGLE_CLIENT_ID }}
+  TF_VAR_allowed_emails: ${{ vars.ALLOWED_EMAILS }}
+  TF_VAR_api_key: ${{ secrets.API_KEY }}
+
 jobs:
-  terraform:
+  plan:
+    # Runs on PRs and manual dispatch. Uses the read-only plan chain.
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: terraform
     env:
-      # Terraform reads TF_VAR_* automatically.
-      TF_VAR_aws_region: ${{ vars.AWS_REGION }}
-      TF_VAR_api_key: ${{ secrets.API_KEY }}
-      TF_VAR_allowed_origins: ${{ vars.ALLOWED_ORIGINS }}
-      # Google auth (optional). When GOOGLE_CLIENT_ID is set, the Lambda verifies
-      # Google ID tokens + this email allowlist instead of the shared API key.
-      TF_VAR_google_client_id: ${{ vars.GOOGLE_CLIENT_ID }}
-      TF_VAR_allowed_emails: ${{ vars.ALLOWED_EMAILS }}
+      TF_VAR_deploy_role_arn: arn:aws:iam::132848804640:role/TerraformShoppingListWebPlan
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -71,11 +81,11 @@ jobs:
           npm test
           npm run build
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials (OIDC -> plan broker)
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ env.PLAN_BROKER_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -83,10 +93,7 @@ jobs:
           terraform_version: 1.16.2
 
       - name: Terraform Init
-        run: |
-          terraform init \
-            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
-            -backend-config="region=${{ vars.AWS_REGION }}"
+        run: terraform init
 
       - name: Terraform Format Check
         run: terraform fmt -check -recursive
@@ -95,8 +102,56 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
+        run: terraform plan -input=false
+
+  apply:
+    # Runs on push to main. The apply broker only trusts the
+    # environment:terraform-apply OIDC subject, so this environment is required.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: terraform-apply
+    defaults:
+      run:
+        working-directory: terraform
+    env:
+      TF_VAR_deploy_role_arn: arn:aws:iam::132848804640:role/TerraformShoppingListWebApply
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: lambda/package-lock.json
+
+      - name: Build Lambda package
+        working-directory: lambda
+        run: |
+          npm ci
+          npm test
+          npm run build
+
+      - name: Configure AWS credentials (OIDC -> apply broker)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.APPLY_BROKER_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.2
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
         run: terraform plan -input=false -out=tfplan
 
       - name: Terraform Apply
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: terraform apply -input=false tfplan

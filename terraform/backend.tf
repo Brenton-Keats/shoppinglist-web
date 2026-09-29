@@ -1,22 +1,21 @@
-# Remote state backend — S3 with native locking (no DynamoDB lock table).
+# Remote state backend — landing-zone-owned S3 bucket, native locking.
 #
-# The bucket name embeds the AWS account ID (see bootstrap), which isn't known
-# at authoring time, so `bucket` and `region` are supplied at init via partial
-# backend configuration:
+# The state bucket lives in the management account (029678959044), and state
+# read/write + lock access belongs to the GitHub broker roles. CI authenticates
+# as the broker (ambient credentials), so the S3 backend uses those broker
+# credentials directly. Resource operations use the Sandbox target role via the
+# provider's assume_role (see versions.tf) — the plan target role is read-only,
+# which is why state access rides on the broker, not the target.
 #
-#   terraform init \
-#     -backend-config="bucket=shoppinglist-tfstate-<account_id>" \
-#     -backend-config="region=<your-region>"
-#
-# CI passes these from the bootstrap outputs. For local runs, use a backend
-# config file (backend.hcl, gitignored) — see README.md.
-#
-# For local validation without any backend, run:
+# Static config (values fixed by the LZ), so `terraform init` needs no
+# -backend-config. For local validation without a backend:
 #   terraform init -backend=false && terraform validate
 
 terraform {
   backend "s3" {
-    key          = "shoppinglist/main.tfstate"
+    bucket       = "terraform-state-029678959044-ap-southeast-2-an"
+    key          = "projects/shoppinglist-web/terraform.tfstate"
+    region       = "ap-southeast-2"
     encrypt      = true
     use_lockfile = true
   }

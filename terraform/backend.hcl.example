@@ -1,8 +1,0 @@
-# Copy to backend.hcl (gitignored) for local runs, then:
-#   terraform init -backend-config=backend.hcl
-#
-# Values come from the bootstrap stack outputs
-# (terraform -chdir=bootstrap output).
-
-bucket = "shoppinglist-tfstate-REPLACE_WITH_ACCOUNT_ID"
-region = "ap-southeast-2"

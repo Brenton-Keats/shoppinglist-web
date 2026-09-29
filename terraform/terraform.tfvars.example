@@ -3,18 +3,24 @@
 aws_region   = "ap-southeast-2"
 project_name = "shoppinglist"
 
-# Shared API key the Lambda validates. Leave "" for open access during setup.
-# Generate with: openssl rand -hex 32
-# Ignored when google_client_id is set.
-api_key = ""
+# Sandbox target role the provider assumes for resource ops. Leave "" for local
+# runs (uses your own credentials); CI sets it per job. For a local apply against
+# Sandbox, set the apply target role ARN:
+# deploy_role_arn = "arn:aws:iam::132848804640:role/TerraformShoppingListWebApply"
+deploy_role_arn = ""
 
-# Google auth (optional). When google_client_id is set, the Lambda verifies
-# Google ID tokens against this client ID + email allowlist instead of the key.
+# Google auth is REQUIRED for this account (the landing zone does not accept a
+# shared key embedded in the client). Set your Google OAuth Web client ID and
+# the allowlisted emails.
 google_client_id = ""
 allowed_emails   = [
   # "you@gmail.com",
   # "housemate@gmail.com",
 ]
+
+# Shared API key — leave "" (unused in Google-auth mode; retained for the
+# fallback auth path only).
+api_key = ""
 
 # Origins allowed by the Function URL CORS config.
 # Include your GitHub Pages origin and local dev.

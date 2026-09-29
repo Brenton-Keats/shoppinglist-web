@@ -23,6 +23,16 @@ terraform {
 provider "aws" {
   region = var.aws_region
 
+  # In CI the ambient credentials are the management-account broker role (which
+  # owns state access); resource operations run as the Sandbox target role via
+  # assume_role. Left unset for local runs, where your own credentials are used.
+  dynamic "assume_role" {
+    for_each = var.deploy_role_arn != "" ? [1] : []
+    content {
+      role_arn = var.deploy_role_arn
+    }
+  }
+
   default_tags {
     tags = {
       Project   = var.project_name

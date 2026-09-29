@@ -5,9 +5,20 @@ variable "aws_region" {
 }
 
 variable "project_name" {
-  description = "Short project identifier used to name and tag resources. Must match bootstrap (drives CI IAM policy resource scoping)."
+  description = "Short project identifier used to name and tag resources. All resources use the '<project_name>-*' prefix (required by the landing zone)."
   type        = string
   default     = "shoppinglist"
+}
+
+variable "deploy_role_arn" {
+  description = <<-EOT
+    Sandbox target role the AWS provider assumes for resource operations
+    (plan: TerraformShoppingListWebPlan, apply: TerraformShoppingListWebApply).
+    CI sets this per job via TF_VAR_deploy_role_arn. Leave empty for local runs
+    to use your own credentials directly.
+  EOT
+  type        = string
+  default     = ""
 }
 
 variable "api_key" {
