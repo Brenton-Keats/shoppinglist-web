@@ -7,8 +7,8 @@ const KID = 'test-key-1';
 
 // One RSA keypair for the whole suite.
 const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
-const jwk: JsonWebKey & { kid: string; alg: string } = {
-  ...publicKey.export({ format: 'jwk' }),
+const jwk = {
+  ...(publicKey.export({ format: 'jwk' }) as Record<string, unknown>),
   kid: KID,
   alg: 'RS256',
 };
