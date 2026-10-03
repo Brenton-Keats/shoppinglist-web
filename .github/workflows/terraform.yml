@@ -46,7 +46,7 @@ env:
   APPLY_ROLE: arn:aws:iam::132848804640:role/GitHubActionsTerraformApply
   TF_VAR_aws_region: ap-southeast-2
   TF_VAR_google_client_id: ${{ vars.GOOGLE_CLIENT_ID }}
-  TF_VAR_allowed_emails: ${{ vars.ALLOWED_EMAILS }}
+  TF_VAR_allowed_emails: ${{ vars.ALLOWED_EMAILS || '[]' }}
   TF_VAR_api_key: ${{ secrets.API_KEY }}
 
 jobs:
