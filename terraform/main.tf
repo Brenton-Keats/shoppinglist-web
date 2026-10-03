@@ -126,9 +126,12 @@ resource "aws_lambda_function" "api" {
   memory_size = var.lambda_memory_mb
   timeout     = var.lambda_timeout_seconds
 
-  # Serializes execution to match the original single-threaded Apps Script
-  # behaviour the sync/conflict logic assumes, and hard-caps cost.
-  reserved_concurrent_executions = 1
+  # Optional reserved concurrency. -1 (default) leaves the function unreserved.
+  # A positive value serializes execution and hard-caps cost, but requires the
+  # account's concurrency quota to be high enough — low-limit sandbox accounts
+  # reject it (unreserved pool would fall below the account minimum). The small
+  # account-wide limit already bounds concurrency/blast radius here.
+  reserved_concurrent_executions = var.reserved_concurrency
 
   environment {
     variables = {
@@ -181,7 +184,7 @@ resource "aws_lambda_permission" "public_url" {
 
 resource "aws_cloudwatch_metric_alarm" "invocations" {
   alarm_name          = "${local.function_name}-invocations"
-  alarm_description   = "Runaway-invocation backstop for ${local.function_name}. Reserved concurrency already caps concurrency; this catches sustained volume."
+  alarm_description   = "Runaway-invocation backstop for ${local.function_name}: flags sustained invocation volume (cost/abuse signal)."
   namespace           = "AWS/Lambda"
   metric_name         = "Invocations"
   statistic           = "Sum"

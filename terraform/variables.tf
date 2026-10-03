@@ -64,6 +64,18 @@ variable "lambda_timeout_seconds" {
   default     = 15
 }
 
+variable "reserved_concurrency" {
+  description = <<-EOT
+    Reserved concurrent executions for the Lambda. -1 (default) leaves it
+    unreserved. A positive value (e.g. 1) serializes execution and caps cost,
+    but the account's concurrency quota must be high enough that the unreserved
+    pool stays at/above the account minimum. Low-limit sandbox accounts reject
+    any reservation, so keep this at -1 there.
+  EOT
+  type        = number
+  default     = -1
+}
+
 variable "log_retention_days" {
   description = "CloudWatch Logs retention for the Lambda log group."
   type        = number
