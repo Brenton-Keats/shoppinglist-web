@@ -1,21 +1,22 @@
 name: Terraform
 
-# Deploys the backend into the Sandbox account using the landing-zone-provided
-# GitHub OIDC CI roles. The identity model and full contract are documented by the
-# landing zone in terraform/15-sandbox-ci/WORKLOAD-CI-ACCESS.md — not repeated here.
+# Infrastructure deploy into the Sandbox account via the landing-zone GitHub OIDC
+# roles. Identity model + contract: the landing zone's
+# terraform/15-sandbox-ci/WORKLOAD-CI-ACCESS.md.
 #
-# This workflow consumes:
-#   - plan role  via the `terraform-plan` environment  (PRs / manual dispatch)
-#   - apply role via the `terraform-apply` environment (push to main)
+# Structure (single-responsibility jobs):
+#   build  — compile the Lambda package once, publish it as an artifact (no cloud)
+#   plan   — PR / manual: consume the artifact, assume the plan role, terraform plan
+#   apply  — push to main: consume the artifact, assume the apply role, apply,
+#            and publish terraform outputs for the Pages workflow
+#
+# No-cloud validation (lambda + frontend tests, builds) lives in ci.yml.
 #
 # Required repo configuration:
-#   Variables:    GOOGLE_CLIENT_ID (required); ALLOWED_EMAILS (optional JSON array —
-#                 empty accepts any account the OAuth client authenticates)
+#   Variables:    GOOGLE_CLIENT_ID (required); ALLOWED_EMAILS (optional JSON array)
 #   Secret:       API_KEY (unused in Google-auth mode; may be "")
 #   Environments: terraform-plan (no protection), terraform-apply (protect main + reviewer)
-#
-# ALLOWED_ORIGINS is derived from the repo owner (GitHub Pages origin). The apply
-# job publishes terraform outputs as an artifact for the Pages workflow.
+# ALLOWED_ORIGINS is derived from the repo owner (GitHub Pages origin).
 
 on:
   push:
@@ -43,15 +44,36 @@ env:
   AWS_REGION: ap-southeast-2
   PLAN_ROLE: arn:aws:iam::132848804640:role/GitHubActionsTerraformPlan
   APPLY_ROLE: arn:aws:iam::132848804640:role/GitHubActionsTerraformApply
-  # Terraform variable inputs (read automatically as TF_VAR_*).
   TF_VAR_aws_region: ap-southeast-2
   TF_VAR_google_client_id: ${{ vars.GOOGLE_CLIENT_ID }}
   TF_VAR_allowed_emails: ${{ vars.ALLOWED_EMAILS }}
   TF_VAR_api_key: ${{ secrets.API_KEY }}
 
 jobs:
+  # Compile the Lambda deployment package once and share it with plan/apply.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: lambda/package-lock.json
+      - name: Build Lambda package
+        working-directory: lambda
+        run: |
+          npm ci
+          npm test
+          npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lambda-dist
+          path: lambda/dist
+          retention-days: 1
+
   plan:
-    # Runs on PRs and manual dispatch, via the terraform-plan environment.
+    needs: build
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: terraform-plan
@@ -59,27 +81,18 @@ jobs:
       run:
         working-directory: terraform
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+
+      - name: Download Lambda package
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda-dist
+          path: lambda/dist
 
       - name: Derive allowed origins (GitHub Pages origin + local dev)
         run: |
           owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           echo "TF_VAR_allowed_origins=[\"https://${owner}.github.io\",\"http://localhost:5173\"]" >> "$GITHUB_ENV"
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: lambda/package-lock.json
-
-      - name: Build Lambda package
-        working-directory: lambda
-        run: |
-          npm ci
-          npm test
-          npm run build
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
@@ -87,25 +100,17 @@ jobs:
           role-to-assume: ${{ env.PLAN_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.16.2
 
-      - name: Terraform Init
-        run: terraform init
-
-      - name: Terraform Format Check
-        run: terraform fmt -check -recursive
-
-      - name: Terraform Validate
-        run: terraform validate
-
-      - name: Terraform Plan
-        run: terraform plan -input=false
+      - run: terraform init
+      - run: terraform fmt -check -recursive
+      - run: terraform validate
+      - run: terraform plan -input=false
 
   apply:
-    # Runs on push to main, via the protected terraform-apply environment.
+    needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: terraform-apply
@@ -113,27 +118,18 @@ jobs:
       run:
         working-directory: terraform
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+
+      - name: Download Lambda package
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda-dist
+          path: lambda/dist
 
       - name: Derive allowed origins (GitHub Pages origin + local dev)
         run: |
           owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           echo "TF_VAR_allowed_origins=[\"https://${owner}.github.io\",\"http://localhost:5173\"]" >> "$GITHUB_ENV"
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: lambda/package-lock.json
-
-      - name: Build Lambda package
-        working-directory: lambda
-        run: |
-          npm ci
-          npm test
-          npm run build
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
@@ -141,22 +137,14 @@ jobs:
           role-to-assume: ${{ env.APPLY_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.16.2
 
-      - name: Terraform Init
-        run: terraform init
-
-      - name: Terraform Validate
-        run: terraform validate
-
-      - name: Terraform Plan
-        run: terraform plan -input=false -out=tfplan
-
-      - name: Terraform Apply
-        run: terraform apply -input=false tfplan
+      - run: terraform init
+      - run: terraform validate
+      - run: terraform plan -input=false -out=tfplan
+      - run: terraform apply -input=false tfplan
 
       - name: Export Terraform outputs
         run: terraform output -json > tf-outputs.json
