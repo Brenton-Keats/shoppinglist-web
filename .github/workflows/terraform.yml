@@ -1,26 +1,20 @@
 name: Terraform
 
-# Identity path (landing zone): GitHub OIDC -> management-account broker role
-# -> Sandbox target role. CI authenticates as the broker (which owns Terraform
-# state access); the AWS provider assumes the Sandbox target role for resource
-# operations (see terraform/versions.tf + backend.tf).
+# Deploys the backend into the Sandbox account using the landing-zone-provided
+# GitHub OIDC CI roles. The identity model and full contract are documented by the
+# landing zone in terraform/15-sandbox-ci/WORKLOAD-CI-ACCESS.md — not repeated here.
 #
-#   Plan (PR):   OIDC[sub repo:...:pull_request]                 -> GitHubActionsDeploymentPlan  -> TerraformShoppingListWebPlan  (ReadOnlyAccess)
-#   Apply (main):OIDC[sub repo:...:environment:terraform-apply]  -> GitHubActionsDeploymentApply -> TerraformShoppingListWebApply (AdministratorAccess)
+# This workflow consumes:
+#   - plan role  via the `terraform-plan` environment  (PRs / manual dispatch)
+#   - apply role via the `terraform-apply` environment (push to main)
 #
-# The apply broker ONLY trusts the environment subject, so the apply job MUST
-# declare `environment: terraform-apply` (configure that environment with
-# main-branch protection + required reviewers in repo settings).
+# Required repo configuration:
+#   Variables:    GOOGLE_CLIENT_ID, ALLOWED_EMAILS (JSON array)
+#   Secret:       API_KEY (unused in Google-auth mode; may be "")
+#   Environments: terraform-plan (no protection), terraform-apply (protect main + reviewer)
 #
-# ALLOWED_ORIGINS is derived from the repo owner (GitHub Pages origin) — no
-# variable needed. The apply job publishes terraform outputs as an artifact that
-# the Pages workflow consumes (so the Function URL is never stored as a variable).
-#
-# Required GitHub Actions configuration:
-#   Variables: GOOGLE_CLIENT_ID, ALLOWED_EMAILS (JSON array)
-#   Secret:    API_KEY (unused in Google-auth mode; may be "")
-# The LZ requires server-side Google ID-token validation for the public Function
-# URL, so set GOOGLE_CLIENT_ID + ALLOWED_EMAILS (not the shared key).
+# ALLOWED_ORIGINS is derived from the repo owner (GitHub Pages origin). The apply
+# job publishes terraform outputs as an artifact for the Pages workflow.
 
 on:
   push:
@@ -46,8 +40,8 @@ concurrency:
 
 env:
   AWS_REGION: ap-southeast-2
-  PLAN_BROKER_ARN: arn:aws:iam::029678959044:role/GitHubActionsDeploymentPlan
-  APPLY_BROKER_ARN: arn:aws:iam::029678959044:role/GitHubActionsDeploymentApply
+  PLAN_ROLE: arn:aws:iam::132848804640:role/GitHubActionsTerraformPlan
+  APPLY_ROLE: arn:aws:iam::132848804640:role/GitHubActionsTerraformApply
   # Terraform variable inputs (read automatically as TF_VAR_*).
   TF_VAR_aws_region: ap-southeast-2
   TF_VAR_google_client_id: ${{ vars.GOOGLE_CLIENT_ID }}
@@ -56,14 +50,13 @@ env:
 
 jobs:
   plan:
-    # Runs on PRs and manual dispatch. Uses the read-only plan chain.
+    # Runs on PRs and manual dispatch, via the terraform-plan environment.
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    environment: terraform-plan
     defaults:
       run:
         working-directory: terraform
-    env:
-      TF_VAR_deploy_role_arn: arn:aws:iam::132848804640:role/TerraformShoppingListWebPlan
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -87,10 +80,10 @@ jobs:
           npm test
           npm run build
 
-      - name: Configure AWS credentials (OIDC -> plan broker)
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ env.PLAN_BROKER_ARN }}
+          role-to-assume: ${{ env.PLAN_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
@@ -111,16 +104,13 @@ jobs:
         run: terraform plan -input=false
 
   apply:
-    # Runs on push to main. The apply broker only trusts the
-    # environment:terraform-apply OIDC subject, so this environment is required.
+    # Runs on push to main, via the protected terraform-apply environment.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: terraform-apply
     defaults:
       run:
         working-directory: terraform
-    env:
-      TF_VAR_deploy_role_arn: arn:aws:iam::132848804640:role/TerraformShoppingListWebApply
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -144,10 +134,10 @@ jobs:
           npm test
           npm run build
 
-      - name: Configure AWS credentials (OIDC -> apply broker)
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ env.APPLY_BROKER_ARN }}
+          role-to-assume: ${{ env.APPLY_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform

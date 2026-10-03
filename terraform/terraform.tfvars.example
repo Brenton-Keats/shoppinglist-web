@@ -3,12 +3,6 @@
 aws_region   = "ap-southeast-2"
 project_name = "shoppinglist"
 
-# Sandbox target role the provider assumes for resource ops. Leave "" for local
-# runs (uses your own credentials); CI sets it per job. For a local apply against
-# Sandbox, set the apply target role ARN:
-# deploy_role_arn = "arn:aws:iam::132848804640:role/TerraformShoppingListWebApply"
-deploy_role_arn = ""
-
 # Google auth is REQUIRED for this account (the landing zone does not accept a
 # shared key embedded in the client). Set your Google OAuth Web client ID and
 # the allowlisted emails.

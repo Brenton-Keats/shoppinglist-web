@@ -10,17 +10,6 @@ variable "project_name" {
   default     = "shoppinglist"
 }
 
-variable "deploy_role_arn" {
-  description = <<-EOT
-    Sandbox target role the AWS provider assumes for resource operations
-    (plan: TerraformShoppingListWebPlan, apply: TerraformShoppingListWebApply).
-    CI sets this per job via TF_VAR_deploy_role_arn. Leave empty for local runs
-    to use your own credentials directly.
-  EOT
-  type        = string
-  default     = ""
-}
-
 variable "api_key" {
   description = <<-EOT
     Shared API key the Lambda validates on every request. Leave empty for open

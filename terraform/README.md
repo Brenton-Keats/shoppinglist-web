@@ -12,28 +12,28 @@ Provisions the runtime infrastructure for the Shopping List backend:
 
 ## Landing zone integration
 
-State and CI identity are owned by the landing zone (see `../LZ-ACCESS-DECISION.md`):
+State and CI identity are provided by the landing zone. The full contract and how
+the identity works live in the landing-zone repo at
+`terraform/15-sandbox-ci/WORKLOAD-CI-ACCESS.md`. What this repo consumes:
 
-- **State:** LZ-owned S3 bucket `terraform-state-029678959044-ap-southeast-2-an`,
-  key `projects/shoppinglist-web/terraform.tfstate`, SSE-S3, native lock file.
-  The bucket lives in the management account; state access belongs to the GitHub
-  **broker** roles, so `backend.tf` is fully static and CI runs with broker
-  credentials.
-- **Identity:** GitHub OIDC → management broker role → Sandbox target role. The
-  AWS provider `assume_role`s the Sandbox target (`var.deploy_role_arn`) for
-  resource operations, while state uses the ambient broker credentials. CI sets
-  `TF_VAR_deploy_role_arn` per job (see `../.github/workflows/terraform.yml`).
-- **Auth:** the LZ requires server-side Google ID-token validation for the public
-  Function URL, so deploy in **Google-auth mode**: set `google_client_id` and
-  `allowed_emails` (Terraform) and `PUBLIC_GOOGLE_CLIENT_ID` (frontend). The
-  shared-key mode is not acceptable for this account.
+- **State:** S3 bucket `terraform-state-132848804640-ap-southeast-2-an`, key
+  `projects/shoppinglist-web/terraform.tfstate` (static in `backend.tf` — no
+  `-backend-config` needed).
+- **CI roles:** the Sandbox `GitHubActionsTerraformPlan` / `GitHubActionsTerraformApply`
+  roles, assumed through the `terraform-plan` / `terraform-apply` GitHub
+  environments (see the workflow).
+- **Auth:** Google-auth mode is required — set `google_client_id` and
+  `allowed_emails` (Terraform) and `PUBLIC_GOOGLE_CLIENT_ID` (frontend). A shared
+  key is not acceptable for this account.
 
 ## Prerequisites
 
 - Terraform `>= 1.11` (native S3 locking via `use_lockfile`).
 - Lambda build present: run `npm ci && npm run build` in `../lambda` so
   `../lambda/dist` exists (CI does this automatically).
-- AWS credentials with access to the target Sandbox role (for local runs).
+- For local runs: credentials for the Sandbox account (e.g. assume
+  `OrganizationAccountAccessRole`, or an SSO profile) with access to the state
+  bucket and the resources being managed.
 
 ## Local usage
 
@@ -43,9 +43,9 @@ cd terraform
 # Variables (Google auth for this account).
 cp terraform.tfvars.example terraform.tfvars   # edit google_client_id, allowed_emails, allowed_origins
 
-# Backend is static — no -backend-config needed. Uses your ambient AWS creds.
+# Backend is static — no -backend-config needed. Uses your ambient Sandbox creds.
 terraform init
-terraform plan     # optionally: -var="deploy_role_arn=arn:aws:iam::132848804640:role/TerraformShoppingListWebApply"
+terraform plan
 terraform apply
 ```
 
@@ -65,8 +65,8 @@ terraform fmt -check -recursive
 
 ## Notes
 
-- `deploy_role_arn` is empty by default (local runs use your own credentials);
-  CI sets it to the plan/apply Sandbox target role.
+- CI uses the landing-zone Sandbox roles; local runs use your own Sandbox
+  credentials.
 - CORS `allow_origins` must include your exact Pages origin
   (e.g. `https://<user>.github.io`) — the path/base is not part of the origin.
 - Enabling DynamoDB point-in-time recovery or a TTL on change-log items are

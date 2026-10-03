@@ -1,7 +1,8 @@
 # Main stack — provider and Terraform version constraints.
 #
-# Depends on the bootstrap stack (./bootstrap) having created the S3 state
-# bucket, GitHub OIDC provider, and CI role.
+# The landing zone (terraform/15-sandbox-ci + the Sandbox state-backend stack)
+# provides the S3 state bucket, GitHub OIDC provider, and the plan/apply roles.
+# This repo does not bootstrap its own identity or state bucket.
 
 terraform {
   # >= 1.11 for GA native S3 state locking (use_lockfile) — no DynamoDB lock
@@ -23,16 +24,7 @@ terraform {
 provider "aws" {
   region = var.aws_region
 
-  # In CI the ambient credentials are the management-account broker role (which
-  # owns state access); resource operations run as the Sandbox target role via
-  # assume_role. Left unset for local runs, where your own credentials are used.
-  dynamic "assume_role" {
-    for_each = var.deploy_role_arn != "" ? [1] : []
-    content {
-      role_arn = var.deploy_role_arn
-    }
-  }
-
+  # Credentials come from CI (the landing-zone Sandbox role) or your local profile.
   default_tags {
     tags = {
       Project   = var.project_name

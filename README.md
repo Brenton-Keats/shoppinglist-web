@@ -73,7 +73,7 @@ The build output is written to the `build/` directory as static files, ready for
    - Variable `PUBLIC_GOOGLE_CLIENT_ID` — Google OAuth Web client ID (enables Google sign-in)
    - Variables `GOOGLE_CLIENT_ID` + `ALLOWED_EMAILS` — used by the Terraform workflow (server-side Google auth)
    - `PUBLIC_API_BASE_URL` and `ALLOWED_ORIGINS` are **inferred automatically** — the Pages build reads the Function URL from the Terraform run's outputs artifact, and CORS origins are derived from the repo owner. No need to set them.
-   - Create a **`terraform-apply` environment** (branch-protected to `main`); the apply job requires it. See `.github/workflows/terraform.yml` and `LZ-ACCESS-DECISION.md`.
+   - Create a **`terraform-plan` environment** (no protection) and a **`terraform-apply` environment** (branch-protected to `main`, required reviewer); the workflow's jobs require them. See `.github/workflows/terraform.yml` and, in the landing-zone repo, `terraform/15-sandbox-ci/WORKLOAD-CI-ACCESS.md`.
 4. Push to `main` — the Terraform workflow applies, then the Pages workflow builds and deploys automatically
 
 #### Netlify / Vercel
