@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "node16",
+    "moduleResolution": "node16",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  // Includes src AND test so the Vite/oxc transform (vitest) and editors resolve
+  // this config for test files and never climb to the repo-root tsconfig (which
+  // extends the SvelteKit-generated .svelte-kit/tsconfig.json). The emit-only
+  // build settings live in tsconfig.build.json.
+  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.mts"]
+}

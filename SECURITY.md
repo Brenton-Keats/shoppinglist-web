@@ -1,84 +1,117 @@
 # Security Model
 
-## Current Authentication
+The PWA frontend (GitHub Pages) talks to an AWS Lambda over a **Lambda Function
+URL** with `AuthType: NONE`. A static site can't sign SigV4 requests, so the
+Function URL itself is public and the **application layer** is the access gate.
+The Lambda supports two interchangeable auth modes, selected by configuration.
 
-This application uses a **shared API key** to authenticate requests between the PWA frontend and the Google Apps Script backend.
+CORS is configured on the Function URL to allow only the GitHub Pages origin
+(and local dev), which constrains browser callers but is not, on its own, a
+security control.
+
+## Mode 1: Shared API key (default)
+
+The scheme carried over from the original Apps Script backend.
 
 ### How it works
 
-1. A random key is generated and stored in two places:
-   - **Server:** Google Apps Script → Project Settings → Script Properties → `API_KEY`
-   - **Client:** GitHub repository secret `PUBLIC_API_KEY`, injected at build time into the static frontend
-2. Every API request from the frontend includes the key as a `?key=` query parameter.
-3. The Apps Script `validateApiKey()` function compares the provided key against the stored Script Property.
-4. Requests without a valid key receive a `{ "error": "Forbidden" }` response.
+1. A random key lives in two places:
+   - **Server:** Terraform variable `api_key` → Lambda env var `API_KEY`.
+   - **Client:** GitHub Actions secret `API_KEY` → injected into the build as `PUBLIC_API_KEY`.
+2. Every request includes the key as a `?key=` query parameter (and as an
+   `apiKey` body field on POST).
+3. The Lambda compares it against `API_KEY` and returns `403` on mismatch. If
+   `API_KEY` is empty, access is open (for initial setup only).
 
-### Deployment configuration
+### What it protects against
 
-| Setting | Value | Reason |
-|---------|-------|--------|
-| Execute as | Me | Script runs with the owner's Google account permissions to read/write the Sheet |
-| Who has access | Anyone | Required for CORS to work with cross-origin `fetch()` from GitHub Pages |
+- Casual discovery of the endpoint URL.
+- Automated scanners hitting the endpoint without the key.
 
-### What this protects against
+### What it does NOT protect against
 
-- Casual discovery: someone finding the deployment URL cannot use it without the key
-- Automated scanning: bots hitting the endpoint get rejected
-- Accidental exposure: the URL alone (visible in public repo config) is not sufficient
+- A determined user can extract the key from the built JavaScript.
+- The key travels in the URL/body (visible in logs, history).
+- No per-user identity — all authenticated callers are equivalent.
 
-### What this does NOT protect against
+This is acceptable for a personal/household list: low asset value, low attacker
+motivation, blast radius limited to one household, trivial recovery.
 
-- A determined user inspecting the built JavaScript can extract the API key
-- The key travels in the URL query string and request body (visible in server logs, browser history)
-- There is no per-user identity — all authenticated requests are equivalent
-- No rate limiting beyond what Google Apps Script provides by default
+## Mode 2: Google sign-in (recommended upgrade)
 
-### Why this is acceptable
+Enabled by setting `google_client_id` (Terraform → Lambda env `GOOGLE_CLIENT_ID`)
+and `PUBLIC_GOOGLE_CLIENT_ID` (frontend). When set, it **takes precedence** over
+the API key, and no shared secret is baked into the shipped JavaScript.
 
-This is a personal household shopping list. The data has negligible value to an attacker. The threat model is:
+### How it works
 
-- **Asset value:** Low (grocery items, not financial or health data)
-- **Attacker motivation:** None (no incentive to target a shopping list)
-- **Blast radius:** Limited to one household's shopping data
-- **Recovery:** Trivial (data is in a Google Sheet with version history)
+1. The frontend uses Google Identity Services to obtain an **ID token** (JWT)
+   for the signed-in Google account.
+2. The token is sent as `Authorization: Bearer <token>`.
+3. The Lambda verifies the token with no external dependencies (`node:crypto`):
+   - RS256 signature against Google's published JWKS (cached per Cache-Control),
+   - `iss` is Google, `aud` equals `GOOGLE_CLIENT_ID`, `exp` not passed,
+   - if an `ALLOWED_EMAILS` allowlist is configured, `email_verified` is true and
+     `email` is on the list.
+4. Anything else returns `403`.
 
-The shared key provides a proportionate access gate without the complexity of OAuth flows or user management.
+### Where access control lives
 
----
+The gate is **"any account the OAuth client authenticates"** (`aud` must equal
+our client ID). Who can obtain such a token is bounded by the OAuth client
+itself:
 
-## Future Options for Improved Security
+- **Authorized JavaScript origins** — tokens for our `aud` are only issued to
+  pages served from the origins registered on the client, so another site can't
+  mint them.
+- **Consent screen user restriction** — while the app is in **Testing** status,
+  only the **test users** you add (your household accounts) can sign in. This is
+  the primary access boundary.
 
-If requirements change (e.g., sharing with others outside the household, storing sensitive data), consider these upgrades in order of complexity:
+`ALLOWED_EMAILS` is **optional** defence-in-depth: leave it empty to accept any
+account the client authenticates (relying on the test-user restriction), or set
+it to pin access to specific emails regardless of the consent-screen config.
 
-### 1. Key rotation
+> ⚠️ **Keep the OAuth app in Testing** (or restrict it to a Google Workspace
+> org). If you move it to **Published / In production**, *any* Google account
+> could sign in and obtain a token with our `aud` — at which point an
+> `ALLOWED_EMAILS` allowlist becomes the only thing restricting access.
 
-Periodically generate a new API key, update Script Properties and the GitHub secret, and redeploy. This limits the window of exposure if a key is compromised.
+### Properties
 
-### 2. IP allowlisting (Apps Script)
+- Real per-user identity; access limited to the OAuth client's authorized users.
+- No shared secret in the client bundle.
+- ID tokens are short-lived (~1h). The app is offline-first, so a stale token
+  only matters when syncing while online; the client silently refreshes (One
+  Tap / FedCM) and retries on the next sync tick. Occasionally the user may need
+  to re-authenticate.
 
-Add validation in `doGet`/`doPost` to check the request's source IP against a whitelist. Limited usefulness for mobile devices with dynamic IPs, but viable for home-network-only access.
+### Google Cloud setup (one-off)
 
-### 3. Google Identity Services (OAuth popup)
+1. Create an OAuth 2.0 **Web application** client ID in Google Cloud Console.
+2. Add authorized JavaScript origins: the GitHub Pages origin and
+   `http://localhost:5173`.
+3. Configure the OAuth consent screen (External, Testing) and add household
+   accounts as test users — no verification review needed at this scale.
+4. Set the client ID once as the repository variable `GOOGLE_CLIENT_ID` — the
+   Terraform workflow uses it as the token audience and the Pages build maps it
+   to the client's `PUBLIC_GOOGLE_CLIENT_ID`. Optionally pin specific emails in
+   `ALLOWED_EMAILS`; otherwise access is limited to the consent screen's test users.
 
-- User signs in with Google via a popup in the PWA
-- Frontend receives an OAuth access token
-- Token is passed to Apps Script via the Apps Script Execution API (not the web app URL)
-- Apps Script validates the caller's Google identity
-- Only whitelisted Google accounts are permitted
+## Infrastructure & CI security
 
-**Trade-offs:** Requires enabling the Apps Script API in Google Cloud Console, configuring an OAuth consent screen, and managing a list of authorised email addresses. Adds a sign-in step to the user experience.
+- **No long-lived AWS keys.** GitHub Actions assumes an IAM role via OIDC; the
+  role's trust policy is scoped to this repository.
+- **Least privilege.** The Lambda execution role can only touch its own DynamoDB
+  table and log group. The CI role is scoped to the project's resource-name
+  prefix.
+- **State.** Terraform state lives in a private, versioned, encrypted S3 bucket
+  with native lock files.
+- **Cost/abuse containment.** Reserved concurrency = 1 caps runaway execution,
+  and a CloudWatch alarm flags sustained invocation volume.
 
-### 4. Firebase Authentication + Cloud Functions proxy
+## Choosing a mode
 
-- Replace the direct Apps Script endpoint with a Firebase Cloud Function
-- Use Firebase Auth for user identity (Google sign-in, email/password, etc.)
-- Cloud Function validates the Firebase ID token, then calls Apps Script or Sheets API directly
-
-**Trade-offs:** Adds infrastructure (Firebase project), but provides proper per-user auth, token refresh, and session management. Overkill for a household app.
-
-### 5. Move off Apps Script entirely
-
-- Use a proper backend (Cloud Run, Vercel serverless, etc.) with standard auth
-- Keep Google Sheets as storage via the Sheets API with a service account
-
-**Trade-offs:** Full control over security, but significantly more infrastructure to maintain.
+Use the shared key for the simplest setup. Switch to Google sign-in when you
+want real identity, an allowlist, and no secret in the client — the two modes
+share the same request pipeline, so switching is a configuration change.

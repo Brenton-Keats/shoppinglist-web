@@ -1,12 +1,21 @@
 name: Deploy to GitHub Pages
 
+# Runs after the Terraform workflow succeeds on main, and reads the Lambda
+# Function URL from that run's `tf-outputs` artifact — so the API base URL is
+# never stored as a variable and the Pages workflow needs no AWS access.
+# Also supports manual dispatch (uses the latest successful Terraform run's
+# artifact).
+
 on:
-  push:
+  workflow_run:
+    workflows: [Terraform]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read # download artifacts from the Terraform run
   pages: write
   id-token: write
 
@@ -16,27 +25,65 @@ concurrency:
 
 jobs:
   build:
+    # Only deploy when the upstream Terraform run succeeded (manual dispatch has
+    # no workflow_run context, so allow it through too).
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
 
+      - name: Resolve Terraform run id
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -n "${{ github.event.workflow_run.id }}" ]; then
+            id="${{ github.event.workflow_run.id }}"
+          else
+            id=$(gh run list --repo "${{ github.repository }}" --workflow Terraform \
+              --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          fi
+          if [ -z "$id" ]; then
+            echo "::error::No successful Terraform run found to source outputs from"
+            exit 1
+          fi
+          echo "TF_RUN_ID=$id" >> "$GITHUB_ENV"
+
+      - name: Download Terraform outputs
+        uses: actions/download-artifact@v4
+        with:
+          name: tf-outputs
+          path: tf-outputs
+          run-id: ${{ env.TF_RUN_ID }}
+          github-token: ${{ github.token }}
+
+      - name: Resolve API base URL from outputs
+        run: |
+          url=$(jq -r '.function_url.value' tf-outputs/tf-outputs.json)
+          if [ -z "$url" ] || [ "$url" = "null" ]; then
+            echo "::error::function_url not found in Terraform outputs artifact"
+            exit 1
+          fi
+          echo "PUBLIC_API_BASE_URL=$url" >> "$GITHUB_ENV"
+
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
-
       - name: Build
         env:
-          PUBLIC_APPS_SCRIPT_URL: ${{ secrets.PUBLIC_APPS_SCRIPT_URL }}
-          PUBLIC_API_KEY: ${{ secrets.PUBLIC_API_KEY }}
+          # Sourced from the Terraform outputs artifact (see steps above).
+          PUBLIC_API_BASE_URL: ${{ env.PUBLIC_API_BASE_URL }}
+          # Unused in Google-auth mode (empty); retained for the fallback path.
+          PUBLIC_API_KEY: ${{ secrets.API_KEY }}
+          # Same repository variable the Terraform workflow uses (GOOGLE_CLIENT_ID);
+          # mapped here to the SvelteKit-required PUBLIC_ build env name.
+          PUBLIC_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
           PUBLIC_APP_NAME: ${{ vars.PUBLIC_APP_NAME || 'Shopping List' }}
           PUBLIC_APP_VERSION: ${{ vars.PUBLIC_APP_VERSION || '1.0.0' }}
         run: npm run build

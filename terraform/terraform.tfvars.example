@@ -1,0 +1,31 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+
+aws_region   = "ap-southeast-2"
+project_name = "shoppinglist"
+
+# Google auth is REQUIRED for this account (the landing zone does not accept a
+# shared key embedded in the client). Set your Google OAuth Web client ID.
+google_client_id = ""
+
+# Optional email allowlist. Empty accepts any account the OAuth client
+# authenticates (fine when the consent screen is locked to test users). Add
+# emails to further restrict access.
+allowed_emails = [
+  # "you@gmail.com",
+  # "housemate@gmail.com",
+]
+
+# Shared API key — leave "" (unused in Google-auth mode; retained for the
+# fallback auth path only).
+api_key = ""
+
+# Origins allowed by the Function URL CORS config.
+# Include your GitHub Pages origin and local dev.
+allowed_origins = [
+  "https://YOUR_GITHUB_USER.github.io",
+  "http://localhost:5173",
+]
+
+# Optional cost-safety alarm tuning.
+# invocation_alarm_threshold = 50000
+# alarm_sns_topic_arn        = "arn:aws:sns:ap-southeast-2:123456789012:alerts"

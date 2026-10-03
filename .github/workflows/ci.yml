@@ -1,0 +1,52 @@
+name: CI
+
+# No-cloud validation for every PR and push: builds and tests the Lambda and the
+# frontend. Fast feedback with zero AWS access. Deployment lives in terraform.yml
+# (infra) and deploy.yml (Pages).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lambda:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lambda
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: lambda/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Build (compile check)
+        env:
+          # The real URL is injected at deploy time; a placeholder is enough to
+          # confirm the static build compiles.
+          PUBLIC_API_BASE_URL: https://ci-placeholder.invalid/
+        run: npm run build
