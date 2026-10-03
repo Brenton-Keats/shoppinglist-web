@@ -93,9 +93,10 @@ it to pin access to specific emails regardless of the consent-screen config.
    `http://localhost:5173`.
 3. Configure the OAuth consent screen (External, Testing) and add household
    accounts as test users — no verification review needed at this scale.
-4. Put the client ID in `PUBLIC_GOOGLE_CLIENT_ID` and Terraform `google_client_id`.
-   Optionally pin specific emails in Terraform `allowed_emails`; otherwise access
-   is limited to the consent screen's test users.
+4. Set the client ID once as the repository variable `GOOGLE_CLIENT_ID` — the
+   Terraform workflow uses it as the token audience and the Pages build maps it
+   to the client's `PUBLIC_GOOGLE_CLIENT_ID`. Optionally pin specific emails in
+   `ALLOWED_EMAILS`; otherwise access is limited to the consent screen's test users.
 
 ## Infrastructure & CI security
 

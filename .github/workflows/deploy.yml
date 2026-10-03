@@ -84,8 +84,9 @@ jobs:
           PUBLIC_API_BASE_URL: ${{ env.PUBLIC_API_BASE_URL }}
           # Unused in Google-auth mode (empty); retained for the fallback path.
           PUBLIC_API_KEY: ${{ secrets.API_KEY }}
-          # Google sign-in client ID (must match Terraform google_client_id).
-          PUBLIC_GOOGLE_CLIENT_ID: ${{ vars.PUBLIC_GOOGLE_CLIENT_ID }}
+          # Same repository variable the Terraform workflow uses (GOOGLE_CLIENT_ID);
+          # mapped here to the SvelteKit-required PUBLIC_ build env name.
+          PUBLIC_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
           PUBLIC_APP_NAME: ${{ vars.PUBLIC_APP_NAME || 'Shopping List' }}
           PUBLIC_APP_VERSION: ${{ vars.PUBLIC_APP_VERSION || '1.0.0' }}
         run: npm run build
