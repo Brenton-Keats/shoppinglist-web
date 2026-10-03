@@ -94,6 +94,13 @@ jobs:
           owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           echo "TF_VAR_allowed_origins=[\"https://${owner}.github.io\",\"http://localhost:5173\"]" >> "$GITHUB_ENV"
 
+      - name: Show OIDC subject
+        run: |
+          jwt=$(curl -sH "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
+          p=$(echo "$jwt" | cut -d. -f2 | tr '_-' '/+'); case $((${#p}%4)) in 2) p="$p==";; 3) p="$p=";; esac
+          echo "$p" | base64 -d | jq '{sub, aud}'
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
