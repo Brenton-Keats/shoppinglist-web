@@ -77,9 +77,26 @@ describe('verifyGoogleToken', () => {
     expect(res.ok).toBe(false);
   });
 
-  it('fails closed on an empty allowlist', async () => {
+  it('accepts any authenticated account when no allowlist is configured', async () => {
     const res = await verifyGoogleToken(signJwt(validPayload()), { ...base, allowedEmails: [] });
-    expect(res).toMatchObject({ ok: false, error: 'email_not_allowed' });
+    expect(res.ok).toBe(true);
+    expect(res.email).toBe('user@example.com');
+  });
+
+  it('accepts a non-listed account when no allowlist is configured', async () => {
+    const res = await verifyGoogleToken(
+      signJwt({ ...validPayload(), email: 'someone-else@example.com' }),
+      { ...base, allowedEmails: [] },
+    );
+    expect(res.ok).toBe(true);
+  });
+
+  it('still rejects a wrong audience even with no allowlist', async () => {
+    const res = await verifyGoogleToken(signJwt({ ...validPayload(), aud: 'other' }), {
+      ...base,
+      allowedEmails: [],
+    });
+    expect(res).toMatchObject({ ok: false, error: 'bad_audience' });
   });
 });
 

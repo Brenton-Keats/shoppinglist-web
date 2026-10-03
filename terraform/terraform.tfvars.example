@@ -4,10 +4,13 @@ aws_region   = "ap-southeast-2"
 project_name = "shoppinglist"
 
 # Google auth is REQUIRED for this account (the landing zone does not accept a
-# shared key embedded in the client). Set your Google OAuth Web client ID and
-# the allowlisted emails.
+# shared key embedded in the client). Set your Google OAuth Web client ID.
 google_client_id = ""
-allowed_emails   = [
+
+# Optional email allowlist. Empty accepts any account the OAuth client
+# authenticates (fine when the consent screen is locked to test users). Add
+# emails to further restrict access.
+allowed_emails = [
   # "you@gmail.com",
   # "housemate@gmail.com",
 ]

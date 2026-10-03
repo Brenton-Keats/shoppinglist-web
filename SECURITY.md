@@ -51,13 +51,35 @@ the API key, and no shared secret is baked into the shipped JavaScript.
 3. The Lambda verifies the token with no external dependencies (`node:crypto`):
    - RS256 signature against Google's published JWKS (cached per Cache-Control),
    - `iss` is Google, `aud` equals `GOOGLE_CLIENT_ID`, `exp` not passed,
-   - `email_verified` is true and `email` is on the `ALLOWED_EMAILS` allowlist.
-4. Anything else returns `403`. The allowlist **fails closed**: an empty list
-   rejects everyone.
+   - if an `ALLOWED_EMAILS` allowlist is configured, `email_verified` is true and
+     `email` is on the list.
+4. Anything else returns `403`.
+
+### Where access control lives
+
+The gate is **"any account the OAuth client authenticates"** (`aud` must equal
+our client ID). Who can obtain such a token is bounded by the OAuth client
+itself:
+
+- **Authorized JavaScript origins** — tokens for our `aud` are only issued to
+  pages served from the origins registered on the client, so another site can't
+  mint them.
+- **Consent screen user restriction** — while the app is in **Testing** status,
+  only the **test users** you add (your household accounts) can sign in. This is
+  the primary access boundary.
+
+`ALLOWED_EMAILS` is **optional** defence-in-depth: leave it empty to accept any
+account the client authenticates (relying on the test-user restriction), or set
+it to pin access to specific emails regardless of the consent-screen config.
+
+> ⚠️ **Keep the OAuth app in Testing** (or restrict it to a Google Workspace
+> org). If you move it to **Published / In production**, *any* Google account
+> could sign in and obtain a token with our `aud` — at which point an
+> `ALLOWED_EMAILS` allowlist becomes the only thing restricting access.
 
 ### Properties
 
-- Real per-user identity; access limited to explicitly allowlisted accounts.
+- Real per-user identity; access limited to the OAuth client's authorized users.
 - No shared secret in the client bundle.
 - ID tokens are short-lived (~1h). The app is offline-first, so a stale token
   only matters when syncing while online; the client silently refreshes (One
@@ -71,8 +93,9 @@ the API key, and no shared secret is baked into the shipped JavaScript.
    `http://localhost:5173`.
 3. Configure the OAuth consent screen (External, Testing) and add household
    accounts as test users — no verification review needed at this scale.
-4. Put the client ID in `PUBLIC_GOOGLE_CLIENT_ID` and Terraform `google_client_id`,
-   and list the permitted emails in Terraform `allowed_emails`.
+4. Put the client ID in `PUBLIC_GOOGLE_CLIENT_ID` and Terraform `google_client_id`.
+   Optionally pin specific emails in Terraform `allowed_emails`; otherwise access
+   is limited to the consent screen's test users.
 
 ## Infrastructure & CI security
 

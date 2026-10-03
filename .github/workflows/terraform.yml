@@ -9,7 +9,8 @@ name: Terraform
 #   - apply role via the `terraform-apply` environment (push to main)
 #
 # Required repo configuration:
-#   Variables:    GOOGLE_CLIENT_ID, ALLOWED_EMAILS (JSON array)
+#   Variables:    GOOGLE_CLIENT_ID (required); ALLOWED_EMAILS (optional JSON array —
+#                 empty accepts any account the OAuth client authenticates)
 #   Secret:       API_KEY (unused in Google-auth mode; may be "")
 #   Environments: terraform-plan (no protection), terraform-apply (protect main + reviewer)
 #

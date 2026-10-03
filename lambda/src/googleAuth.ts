@@ -5,8 +5,10 @@ import type { AuthContext, AuthResult, Authenticator } from './auth';
  * Google ID-token verification with no external dependencies.
  *
  * Verifies an RS256 JWT issued by Google Identity Services against Google's
- * published JWKS, then checks the standard claims (iss/aud/exp) and an email
- * allowlist. Used by the Lambda when GOOGLE_CLIENT_ID is configured.
+ * published JWKS and checks the standard claims (iss/aud/exp). An email
+ * allowlist is optional: with none, any account the OAuth client authenticates
+ * is accepted (access is bounded by the client's authorized origins and consent
+ * screen). Used by the Lambda when GOOGLE_CLIENT_ID is configured.
  */
 
 const GOOGLE_ISSUERS = new Set(['accounts.google.com', 'https://accounts.google.com']);
@@ -143,10 +145,18 @@ export async function verifyGoogleToken(token: string, opts: VerifyOptions): Pro
   }
 
   const email = typeof payload.email === 'string' ? payload.email.toLowerCase() : undefined;
+
+  // No allowlist configured: accept any account the OAuth client authenticates.
+  // Access is bounded by the OAuth client itself — authorized JavaScript origins
+  // and the consent screen's user restriction (e.g. Testing-mode test users).
+  if (opts.allowedEmails.length === 0) {
+    return { ok: true, email };
+  }
+
+  // Allowlist configured: require a verified email that is on the list.
   const verified = payload.email_verified === true || payload.email_verified === 'true';
   if (!email || !verified) return { ok: false, error: 'email_unverified' };
-
-  if (opts.allowedEmails.length === 0 || !opts.allowedEmails.includes(email)) {
+  if (!opts.allowedEmails.includes(email)) {
     return { ok: false, error: 'email_not_allowed' };
   }
 
@@ -155,7 +165,8 @@ export async function verifyGoogleToken(token: string, opts: VerifyOptions): Pro
 
 /**
  * Authenticator that validates a Google ID token from the Authorization header.
- * Fails closed: an empty allowlist rejects everyone.
+ * With no allowlist, any account the OAuth client authenticates is accepted;
+ * supply an allowlist to further restrict to specific emails.
  */
 export function createGoogleAuthenticator(config: {
   clientId: string;

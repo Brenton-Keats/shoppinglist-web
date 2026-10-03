@@ -33,8 +33,10 @@ variable "google_client_id" {
 
 variable "allowed_emails" {
   description = <<-EOT
-    Allowlist of Google account emails permitted to access the API when Google
-    auth is enabled. Fails closed: empty list rejects everyone.
+    Optional email allowlist for Google auth. Empty (the default) accepts any
+    account the OAuth client authenticates — appropriate when the OAuth consent
+    screen is restricted (e.g. Testing-mode test users). Set specific emails to
+    further restrict access regardless of the consent-screen configuration.
   EOT
   type        = list(string)
   default     = []
