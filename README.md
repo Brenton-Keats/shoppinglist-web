@@ -6,7 +6,7 @@ An offline-first, installable Progressive Web App (PWA) for managing shared shop
 
 - **Offline-First**: Works without internet. All data is stored locally and syncs when connection returns.
 - **Installable PWA**: Add to your home screen on iOS, Android, and desktop for a native app experience.
-- **Shared Lists**: Collaborate with family members via Google Sheets backend.
+- **Shared Lists**: Collaborate with family members via a shared cloud backend.
 - **Smart Organization**: Group items by store or category with drag-and-drop reordering.
 - **Shopping Mode**: Clean, focused view for checking off items while shopping.
 - **Suggestions**: Frequency-based suggestions from your shopping history.
@@ -18,7 +18,7 @@ An offline-first, installable Progressive Web App (PWA) for managing shared shop
 
 - **Frontend**: SvelteKit 5, TypeScript, Tailwind CSS v4
 - **Database**: Dexie (IndexedDB wrapper) for local storage; AWS DynamoDB server-side
-- **Sync**: AWS Lambda Function URL (Node.js) over CORS, replacing the former Google Apps Script API
+- **Sync**: AWS Lambda Function URL (Node.js) over CORS
 - **Infrastructure**: Terraform (S3-native state locking), deployed via GitHub Actions + AWS OIDC
 - **Auth**: shared API key or Google sign-in (see SECURITY.md)
 - **PWA**: vite-plugin-pwa (generateSW strategy) with Workbox
@@ -31,7 +31,7 @@ An offline-first, installable Progressive Web App (PWA) for managing shared shop
 ### Prerequisites
 
 - Node.js 24+ and npm
-- Google account (for Apps Script backend)
+- A Google account (for sign-in); an AWS account only if deploying the backend
 
 ### Installation
 
@@ -125,11 +125,12 @@ The backend is an AWS Lambda (Node.js) fronted by a Lambda Function URL, storing
 
 ### Setup outline
 
-1. **Bootstrap** (once): `cd terraform/bootstrap && terraform apply` — creates the S3 state bucket, GitHub OIDC provider, and CI role. See `terraform/bootstrap/README.md`.
-2. **Main stack**: `cd terraform && terraform init && terraform apply` — creates DynamoDB, the Lambda, and the Function URL (state backend is preconfigured). See `terraform/README.md`.
-3. **Migrate data** (once): run `lambda/scripts/migrate.mjs` to copy existing data from the old Apps Script backend into DynamoDB. See `lambda/README.md`.
+The landing zone provides the Terraform state bucket, the GitHub OIDC provider, and the plan/apply roles, so there's no bootstrap step in this repo.
 
-CI (`.github/workflows/terraform.yml`) plans on PRs and applies on `main` via GitHub OIDC → landing-zone roles (no long-lived AWS keys), then the Pages workflow deploys the frontend using the Function URL from the Terraform outputs artifact. The former `apps-script/` backend is retained for reference only.
+- **Deploy via CI** (normal path): the Terraform workflow plans on PRs and applies on `main`; it creates DynamoDB, the Lambda, and the Function URL. See `terraform/README.md`.
+- **Local apply** (optional): `cd terraform && terraform init && terraform apply` with credentials for the Sandbox role.
+
+CI (`.github/workflows/terraform.yml`) authenticates via GitHub OIDC → landing-zone roles (no long-lived AWS keys), then the Pages workflow deploys the frontend using the Function URL from the Terraform outputs artifact. The DynamoDB table starts empty — add lists in the app and they sync up.
 
 ## PWA Install Instructions
 
@@ -185,9 +186,8 @@ Key boundaries:
 
 ```
 shoppinglist-web/
-├── apps-script/          # Legacy Google Apps Script backend (retained for reference)
-├── lambda/               # AWS Lambda sync backend (TypeScript) + migration script
-├── terraform/            # Infrastructure as Code (bootstrap + main stack)
+├── lambda/               # AWS Lambda sync backend (TypeScript)
+├── terraform/            # Infrastructure as Code (main stack)
 ├── scripts/             # Build utilities (icon generation)
 ├── src/
 │   ├── app.html         # HTML template with PWA meta tags

@@ -3,8 +3,7 @@ import type { EntityRecord, EntityType, Operation } from './types';
 import type { Store } from './store';
 
 /**
- * Pure computation of the row to write for a create/update/delete, mirroring
- * applyEntityChange() in apps-script/ChangeLog.ts.
+ * Pure computation of the row to write for a create/update/delete.
  *
  * Returns the record to upsert, or null when the operation is a no-op (e.g.
  * deleting an entity that doesn't exist).
@@ -67,7 +66,6 @@ export function computeEntityWrite(
 
 /**
  * Applies a single change to the store. Returns true if a write occurred.
- * Mirrors applyChange() in apps-script/ChangeLog.ts.
  */
 export async function applyChange(
   store: Store,

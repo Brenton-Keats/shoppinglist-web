@@ -27,9 +27,9 @@ export type Authenticator = (ctx: AuthContext) => AuthResult | Promise<AuthResul
 /**
  * Shared-API-key authenticator.
  *
- * Mirrors validateApiKey() in apps-script/Code.ts: if no key is configured,
- * all requests are allowed (open access for initial setup). Otherwise the key
- * must match either the query parameter or the body field.
+ * If no key is configured, all requests are allowed (open access for initial
+ * setup). Otherwise the key must match either the query parameter or the body
+ * field.
  */
 export function createApiKeyAuthenticator(expectedKey: string | undefined): Authenticator {
   return (ctx: AuthContext): AuthResult => {

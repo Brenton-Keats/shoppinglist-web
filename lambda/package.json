@@ -8,8 +8,7 @@
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf dist",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run",
-    "migrate": "node scripts/migrate.mjs"
+    "test": "vitest run"
   },
   "engines": {
     "node": ">=22.0.0"

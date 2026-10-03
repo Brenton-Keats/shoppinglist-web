@@ -7,8 +7,7 @@ function getEnv(key: string): string | undefined {
 
 export const ENV = {
 	/**
-	 * Base URL of the sync API (the Lambda Function URL). Replaces the former
-	 * PUBLIC_APPS_SCRIPT_URL.
+	 * Base URL of the sync API (the Lambda Function URL).
 	 */
 	get PUBLIC_API_BASE_URL(): string {
 		const value = getEnv('PUBLIC_API_BASE_URL');

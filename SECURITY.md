@@ -3,15 +3,16 @@
 The PWA frontend (GitHub Pages) talks to an AWS Lambda over a **Lambda Function
 URL** with `AuthType: NONE`. A static site can't sign SigV4 requests, so the
 Function URL itself is public and the **application layer** is the access gate.
-The Lambda supports two interchangeable auth modes, selected by configuration.
+The deployment uses **Google sign-in**; a shared-API-key mode remains available
+as a fallback. The mode is selected by configuration.
 
 CORS is configured on the Function URL to allow only the GitHub Pages origin
 (and local dev), which constrains browser callers but is not, on its own, a
 security control.
 
-## Mode 1: Shared API key (default)
+## Mode 1: Shared API key (fallback)
 
-The scheme carried over from the original Apps Script backend.
+A simple shared-key scheme, used only when Google auth isn't configured.
 
 ### How it works
 
@@ -37,7 +38,7 @@ The scheme carried over from the original Apps Script backend.
 This is acceptable for a personal/household list: low asset value, low attacker
 motivation, blast radius limited to one household, trivial recovery.
 
-## Mode 2: Google sign-in (recommended upgrade)
+## Mode 2: Google sign-in (primary)
 
 Enabled by setting `google_client_id` (Terraform → Lambda env `GOOGLE_CLIENT_ID`)
 and `PUBLIC_GOOGLE_CLIENT_ID` (frontend). When set, it **takes precedence** over
@@ -112,6 +113,7 @@ it to pin access to specific emails regardless of the consent-screen config.
 
 ## Choosing a mode
 
-Use the shared key for the simplest setup. Switch to Google sign-in when you
-want real identity, an allowlist, and no secret in the client — the two modes
-share the same request pipeline, so switching is a configuration change.
+This deployment uses **Google sign-in** — real identity, an allowlist, and no
+secret in the client. The shared-key mode exists only as a fallback for setups
+without Google configured; both modes share the same request pipeline, so the
+choice is purely a configuration change.

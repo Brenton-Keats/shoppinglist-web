@@ -1,11 +1,9 @@
 # Shopping List — Lambda backend
 
-TypeScript AWS Lambda that replaces the Google Apps Script backend. It exposes
-the **same two-endpoint contract** the frontend already speaks, so the client
-change at cutover is minimal:
+TypeScript AWS Lambda that serves the sync API for the PWA. Two endpoints:
 
-- `GET`  → full dataset dump (was `GET /api/data`)
-- `POST` → batched sync (was `POST /api/sync`)
+- `GET`  → full dataset dump
+- `POST` → batched sync
 
 Routing is by HTTP method (the client distinguishes data vs sync by GET/POST,
 not by path). The function is invoked through a **Lambda Function URL**; CORS and
@@ -25,22 +23,22 @@ One table, uniform String `pk`/`sk`:
 
 Revisions are zero-padded to a fixed width so lexicographic SK ordering equals
 numeric ordering. The counter is the single source of truth for both revision
-allocation and the current server revision, and is updated atomically — correct
-even without the reserved-concurrency=1 guard the deployment also applies.
+allocation and the current server revision, and is updated atomically.
 
-## Behaviour parity
+## Conflict handling
 
-The create/update/delete field handling (`src/apply.ts`) and last-write-wins
-conflict resolution (`src/conflict.ts`) are ported from
-`apps-script/ChangeLog.ts` and `apps-script/Conflict.ts` so results match the
-Sheets backend: delete tombstones win, resurrection-after-delete favours the
-client, otherwise later `updated_at` wins with server as the tiebreak.
+Create/update/delete field handling (`src/apply.ts`) and last-write-wins
+conflict resolution (`src/conflict.ts`): delete tombstones win,
+resurrection-after-delete favours the client, otherwise later `updated_at` wins
+with the server as the tiebreak.
 
 ## Auth
 
-`src/auth.ts` is a pluggable `Authenticator`. Phase 1 ships the shared-API-key
-scheme (query `?key=` or body `apiKey`), matching the current model. Phase 5
-swaps in Google ID-token verification without touching the handlers.
+`src/auth.ts` defines a pluggable `Authenticator`. The deployment uses
+`src/googleAuth.ts` — Google ID-token verification (`node:crypto` + JWKS,
+`aud`/`iss`/`exp` checks, optional email allowlist) — selected when
+`GOOGLE_CLIENT_ID` is set. A shared-API-key authenticator remains available as a
+fallback for setups without Google configured.
 
 ## Layout
 
@@ -52,7 +50,8 @@ src/
   conflict.ts     LWW conflict resolution
   store.ts        storage interface
   dynamoStore.ts  DynamoDB implementation
-  auth.ts         pluggable authentication
+  auth.ts         pluggable authentication interface + shared-key fallback
+  googleAuth.ts   Google ID-token verification (JWKS, aud/iss/exp, allowlist)
   config.ts       entity columns, key layout, revision padding
   types.ts        shared types
 test/             vitest suite (in-memory Store; no AWS needed)
@@ -63,37 +62,15 @@ test/             vitest suite (in-memory Store; no AWS needed)
 ```bash
 npm install
 npm run typecheck   # tsc --noEmit
-npm test            # vitest (26 tests, in-memory)
+npm test            # vitest (in-memory, no AWS)
 npm run build       # tsc -> dist/  (packaged by Terraform)
 ```
-
-## Data migration (one-off)
-
-`scripts/migrate.mjs` copies the existing Google Apps Script dataset into
-DynamoDB. Run it once after the main Terraform stack is applied and before
-cutting the frontend over:
-
-```bash
-cd lambda
-npm ci   # ensures the AWS SDK is available to the script
-
-SOURCE_URL="https://script.google.com/macros/s/XXX/exec" \
-SOURCE_API_KEY="the-shared-key" \
-TABLE_NAME="$(terraform -chdir=../terraform output -raw table_name)" \
-AWS_REGION="ap-southeast-2" \
-npm run migrate -- --dry-run     # inspect counts first, then drop --dry-run
-```
-
-It upserts all entities + settings and seeds the revision counter to the
-source `serverRevision` (idempotent — safe to re-run). The change-log history is
-**not** migrated, so make sure every device is fully synced before cutover;
-a device that was behind should clear its local data to trigger a fresh initial
-fetch. AWS credentials come from the standard SDK credential chain.
 
 ## Runtime
 
 - Runtime: `nodejs24.x`
 - Handler: `index.handler`
-- Env vars: `TABLE_NAME` (required), `API_KEY` (optional; omit for open access)
+- Env vars: `TABLE_NAME` (required); `GOOGLE_CLIENT_ID` + `ALLOWED_EMAILS`
+  (Google auth); `API_KEY` (optional shared-key fallback)
 - The AWS SDK v3 is provided by the Lambda runtime, so `dist/` ships without
   `node_modules`. SDK packages are dev/build-time dependencies here.

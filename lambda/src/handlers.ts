@@ -13,7 +13,6 @@ import type {
 
 /**
  * GET /api/data — full dataset dump for initial sync.
- * Mirrors handleGetData() in apps-script/Api.ts.
  */
 export async function handleGetData(store: Store): Promise<ServerDataResponse> {
   const [serverRevision, lists, sections, stores, products, listItems, settings] =
@@ -32,7 +31,7 @@ export async function handleGetData(store: Store): Promise<ServerDataResponse> {
 
 /**
  * POST /api/sync — apply batched client changes, return server changes since
- * the client's base revision. Mirrors handlePostSync() in apps-script/Api.ts.
+ * the client's base revision.
  */
 export async function handlePostSync(store: Store, body: SyncRequest): Promise<SyncResponse> {
   const deviceId = body.deviceId || 'unknown';

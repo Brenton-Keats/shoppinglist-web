@@ -1,9 +1,8 @@
 /**
  * Shared types for the Shopping List sync backend.
  *
- * These mirror the data contract established by the original Google Apps
- * Script backend (see apps-script/ and apps-script/README.md). Field names are
- * snake_case to match what the client already sends and expects.
+ * The shared data contract. Field names are snake_case to match what the
+ * client sends and expects.
  */
 
 export type EntityType = 'List' | 'Section' | 'Store' | 'Product' | 'ListItem';

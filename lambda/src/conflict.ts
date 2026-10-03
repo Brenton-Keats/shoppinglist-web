@@ -3,9 +3,6 @@ import type { ClientChange, EntityRecord } from './types';
 
 /**
  * Deterministic last-write-wins conflict resolution.
- *
- * Ported verbatim (in behaviour) from apps-script/Conflict.ts so the
- * DynamoDB backend resolves conflicts identically to the Sheets backend.
  */
 
 export interface ConflictResolution {

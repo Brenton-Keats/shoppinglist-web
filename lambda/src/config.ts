@@ -1,9 +1,7 @@
 import type { EntityType } from './types';
 
 /**
- * Per-entity column definitions, mirroring SHEET_HEADERS in
- * apps-script/Config.ts. These drive create/update/delete field handling so
- * behaviour matches the original backend exactly.
+ * Per-entity column definitions that drive create/update/delete field handling.
  */
 export const ENTITY_COLUMNS: Record<EntityType, string[]> = {
   List: [
