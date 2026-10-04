@@ -1,12 +1,27 @@
 name: Deploy to GitHub Pages
 
-# Runs after the Terraform workflow succeeds on main, and reads the Lambda
-# Function URL from that run's `tf-outputs` artifact — so the API base URL is
-# never stored as a variable and the Pages workflow needs no AWS access.
-# Also supports manual dispatch (uses the latest successful Terraform run's
-# artifact).
+# Deploys the frontend to GitHub Pages. Triggers on:
+#   * push to main — covers frontend-only changes (src/**, static/**, etc.) that
+#     do NOT run Terraform, so the UI ships without an infra change.
+#   * workflow_run after Terraform succeeds — covers infra changes, so a new
+#     Lambda URL is picked up and the frontend is rebuilt against it.
+#   * manual dispatch.
+#
+# In every case the Lambda Function URL is read from the latest successful
+# Terraform run's `tf-outputs` artifact (see "Resolve Terraform run id"), so the
+# API base URL is never stored as a variable and this workflow needs no AWS
+# access.
 
 on:
+  push:
+    branches: [main]
+    # Frontend-only changes don't run Terraform, so deploy directly. Infra
+    # changes (terraform/**, lambda/**) are excluded here and instead deploy via
+    # the workflow_run trigger below, once Terraform has applied the new URL.
+    paths-ignore:
+      - 'terraform/**'
+      - 'lambda/**'
+      - '.github/workflows/terraform.yml'
   workflow_run:
     workflows: [Terraform]
     types: [completed]
@@ -25,9 +40,9 @@ concurrency:
 
 jobs:
   build:
-    # Only deploy when the upstream Terraform run succeeded (manual dispatch has
-    # no workflow_run context, so allow it through too).
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    # Deploy on direct push and manual dispatch unconditionally; for
+    # workflow_run (Terraform) events, only when that upstream run succeeded.
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
