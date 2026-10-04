@@ -93,7 +93,7 @@
 			</button>
 		{/if}
 		{#if isLoading}
-			<div class="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[var(--color-text-secondary)]/30 border-t-[var(--color-primary)]"></div>
+			<div class="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[var(--color-text-secondary)]/30 border-t-[var(--color-accent)]"></div>
 		{/if}
 	</div>
 
@@ -113,7 +113,7 @@
 							class="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors active:bg-[var(--color-bg)]"
 						>
 							<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)]/10">
-								<Plus size={14} class="text-[var(--color-primary)]" />
+								<Plus size={14} class="text-[var(--color-accent)]" />
 							</div>
 							<div class="flex-1 min-w-0">
 								<div class="truncate text-sm font-medium text-[var(--color-text)]">
@@ -131,9 +131,9 @@
 					class="flex w-full items-center gap-3 border-t border-[var(--color-border)] px-4 py-3 text-left transition-colors active:bg-[var(--color-bg)]"
 				>
 					<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)]/15">
-						<Plus size={14} class="text-[var(--color-primary)]" />
+						<Plus size={14} class="text-[var(--color-accent)]" />
 					</div>
-					<span class="text-sm font-medium text-[var(--color-primary)]">
+					<span class="text-sm font-medium text-[var(--color-accent)]">
 						Create "{query.trim()}"
 					</span>
 				</button>

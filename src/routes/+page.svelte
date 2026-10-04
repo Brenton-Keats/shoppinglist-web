@@ -493,7 +493,7 @@
 					</div>
 					<div class="flex-1">
 						<span class="text-sm font-medium text-[var(--color-text)]">{searchQuery.trim()}</span>
-						<span class="ml-2 rounded bg-[var(--color-primary)]/10 px-1.5 py-0.5 text-xs font-medium text-[var(--color-primary)]">New</span>
+						<span class="ml-2 rounded bg-[var(--color-primary)]/10 px-1.5 py-0.5 text-xs font-medium text-[var(--color-accent)]">New</span>
 					</div>
 				</button>
 			{/if}
@@ -515,7 +515,7 @@
 								{group.section?.name ?? 'Uncategorized'}
 							</span>
 							{#if onListCount > 0}
-								<span class="text-xs font-medium text-[var(--color-primary)]">{onListCount}</span>
+								<span class="text-xs font-medium text-[var(--color-accent)]">{onListCount}</span>
 							{/if}
 						</button>
 						{#if !isCollapsed}
@@ -612,7 +612,7 @@
 					>
 						<div class="flex-1 min-w-0">
 							<div class="flex items-center gap-2">
-								<span class="truncate text-sm font-medium {isCurrent ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'}">
+								<span class="truncate text-sm font-medium {isCurrent ? 'text-[var(--color-accent)]' : 'text-[var(--color-text)]'}">
 									{list.name}
 								</span>
 								{#if list.status === 'ARCHIVED'}
@@ -624,7 +624,7 @@
 							</span>
 						</div>
 						{#if isCurrent}
-							<span class="text-xs font-medium text-[var(--color-primary)]">Current</span>
+							<span class="text-xs font-medium text-[var(--color-accent)]">Current</span>
 						{/if}
 					</button>
 				{/each}

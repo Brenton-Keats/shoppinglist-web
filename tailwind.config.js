@@ -5,17 +5,18 @@ export default {
 	theme: {
 		extend: {
 			colors: {
+				// KeatsLabs brand blue scale (k-labs-branding/palette)
 				primary: {
-					50: '#f0fdfa',
-					100: '#ccfbf1',
-					200: '#99f6e4',
-					300: '#5eead4',
-					400: '#2dd4bf',
-					500: '#14b8a6',
-					600: '#0d9488',
-					700: '#0f766e',
-					800: '#115e59',
-					900: '#134e4a'
+					50: '#e4f9fd', // kl-blue-100
+					100: '#e4f9fd', // kl-blue-100
+					200: '#b8effb', // kl-blue-200
+					300: '#72ddf8', // kl-blue-300
+					400: '#27c4f4', // kl-blue-400
+					500: '#08aeef', // kl-blue-500 (brand primary)
+					600: '#087fce', // kl-blue-600
+					700: '#075ea8', // kl-blue-700
+					800: '#0a2f52', // kl-blue-800
+					900: '#081a2e' // kl-blue-900
 				}
 			},
 			fontSize: {

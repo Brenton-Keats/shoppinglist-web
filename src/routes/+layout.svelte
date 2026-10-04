@@ -18,7 +18,7 @@
 
 <svelte:head>
 	<title>Shopping List</title>
-	<meta name="theme-color" content={uiStore.resolvedTheme === 'dark' ? '#0f172a' : '#ffffff'} />
+	<meta name="theme-color" content={uiStore.resolvedTheme === 'dark' ? '#050608' : '#075ea8'} />
 </svelte:head>
 
 <div class="flex min-h-[100dvh] flex-col bg-[var(--color-bg)] text-[var(--color-text)]">

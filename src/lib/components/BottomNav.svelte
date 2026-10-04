@@ -24,7 +24,7 @@
 			<a
 				href={fullPath}
 				class="flex flex-1 flex-col items-center justify-center gap-1 transition-colors
-					{isActive ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-secondary)]'}"
+					{isActive ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-secondary)]'}"
 				aria-label={tab.label}
 				aria-current={isActive ? 'page' : undefined}
 			>

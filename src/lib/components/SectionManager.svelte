@@ -183,7 +183,7 @@
 				bind:value={newName}
 				onkeydown={(e) => handleKeydown(e, 'add')}
 				placeholder="Section name"
-				class="flex-1 rounded-md bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-text)] outline-none ring-1 ring-[var(--color-border)] focus:ring-[var(--color-primary)]"
+				class="flex-1 rounded-md bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-text)] outline-none ring-1 ring-[var(--color-border)] focus:ring-[var(--color-accent)]"
 			/>
 			<button
 				onclick={handleAdd}
@@ -227,7 +227,7 @@
 							bind:this={editInputRef}
 							bind:value={editName}
 							onkeydown={(e) => handleKeydown(e, 'edit')}
-							class="flex-1 rounded-md bg-[var(--color-bg)] px-2 py-1.5 text-sm text-[var(--color-text)] outline-none ring-1 ring-[var(--color-border)] focus:ring-[var(--color-primary)]"
+							class="flex-1 rounded-md bg-[var(--color-bg)] px-2 py-1.5 text-sm text-[var(--color-text)] outline-none ring-1 ring-[var(--color-border)] focus:ring-[var(--color-accent)]"
 						/>
 						<button
 							onclick={handleEditSave}

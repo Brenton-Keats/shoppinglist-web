@@ -24,8 +24,8 @@
 		</span>
 		<span class="text-[var(--color-warning)]">{syncStore.pendingCount} pending</span>
 	{:else if syncStore.status === 'syncing'}
-		<Loader2 size={14} class="animate-spin text-[var(--color-primary)]" />
-		<span class="text-[var(--color-primary)]">Syncing...</span>
+		<Loader2 size={14} class="animate-spin text-[var(--color-accent)]" />
+		<span class="text-[var(--color-accent)]">Syncing...</span>
 	{:else if syncStore.status === 'offline'}
 		<WifiOff size={14} class="text-[var(--color-warning)]" />
 		<span class="text-[var(--color-warning)]">Offline</span>

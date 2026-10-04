@@ -145,7 +145,7 @@
 		</div>
 		<div class="flex flex-wrap gap-1.5 mt-0.5">
 			{#if sectionName}
-				<span class="inline-flex items-center rounded-md bg-[var(--color-primary)]/10 px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-primary)]">
+				<span class="inline-flex items-center rounded-md bg-[var(--color-primary)]/10 px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-accent)]">
 					{sectionName}
 				</span>
 			{/if}

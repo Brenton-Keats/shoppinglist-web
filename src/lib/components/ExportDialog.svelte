@@ -98,7 +98,7 @@
 					onclick={() => handleCopy(true)}
 					class="flex items-center gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-left active:bg-[var(--color-border)]"
 				>
-					<FileText size={20} class="text-[var(--color-primary)]" />
+					<FileText size={20} class="text-[var(--color-accent)]" />
 					<div class="flex-1">
 						<div class="text-sm font-medium text-[var(--color-text)]">Copy full list</div>
 						<div class="text-xs text-[var(--color-text-secondary)]">
@@ -113,7 +113,7 @@
 						onclick={() => handleCopy(false)}
 						class="flex items-center gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-left active:bg-[var(--color-border)]"
 					>
-						<ClipboardCheck size={20} class="text-[var(--color-primary)]" />
+						<ClipboardCheck size={20} class="text-[var(--color-accent)]" />
 						<div class="flex-1">
 							<div class="text-sm font-medium text-[var(--color-text)]">Copy unchecked items</div>
 							<div class="text-xs text-[var(--color-text-secondary)]">
@@ -129,7 +129,7 @@
 						onclick={() => handleShare(true)}
 						class="flex items-center gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-left active:bg-[var(--color-border)]"
 					>
-						<Share2 size={20} class="text-[var(--color-primary)]" />
+						<Share2 size={20} class="text-[var(--color-accent)]" />
 						<div class="flex-1">
 							<div class="text-sm font-medium text-[var(--color-text)]">Share list</div>
 							<div class="text-xs text-[var(--color-text-secondary)]">

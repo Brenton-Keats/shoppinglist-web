@@ -22,7 +22,7 @@
 
 	const variantClasses = {
 		default: 'text-[var(--color-text-secondary)] active:bg-[var(--color-surface)]',
-		primary: 'text-[var(--color-primary)] active:bg-[var(--color-surface)]',
+		primary: 'text-[var(--color-accent)] active:bg-[var(--color-surface)]',
 		ghost: 'text-[var(--color-text)] active:bg-[var(--color-surface)]'
 	};
 </script>

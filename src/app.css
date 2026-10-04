@@ -1,17 +1,34 @@
 @import "tailwindcss/index.css" source("../src");
 
 @layer base {
+	/*
+	 * KeatsLabs brand palette (see k-labs-branding/palette/palette.css).
+	 *
+	 * The brand primary is blue-500 #08AEEF — a bright cyan-blue. It is too
+	 * light to carry white text (white-on-#08AEEF is only 2.5:1, failing WCAG
+	 * AA). The UI puts white text on every primary-coloured FILL, so the token
+	 * roles are split:
+	 *   --color-primary       blue-700 #075EA8  — fills (buttons/checkbox); white text 6.6:1 (AA)
+	 *   --color-primary-light brand blue        — decorative tints / focus rings
+	 *   --color-accent        theme-tuned blue  — accent TEXT & icons on the page bg
+	 * Accent must read on the background, which pulls in opposite directions by
+	 * theme: on the near-white light bg a darker blue (blue-700, 6.3:1) is
+	 * legible; on the near-black dark bg a brighter blue (blue-400, 9.3:1) is.
+	 * All values are drawn from the brand scale. Full rationale in the
+	 * .worklog report.
+	 */
 	:root {
-		--color-bg: #fafaf9;
+		--color-bg: #f7fafc; /* kl-white */
 		--color-surface: #ffffff;
-		--color-text: #1c1917;
-		--color-text-secondary: #78716c;
-		--color-border: #e7e5e4;
-		--color-primary: #0f766e;
-		--color-primary-light: #14b8a6;
-		--color-primary-dark: #115e59;
+		--color-text: #0d1014; /* kl-neutral-900 — 18.2:1 on bg */
+		--color-text-secondary: #4a525d; /* kl-neutral-500 — 7.5:1 on bg */
+		--color-border: #e3e7eb; /* kl-neutral-100 */
+		--color-primary: #075ea8; /* kl-blue-700 — fill; white text 6.6:1 (AA) */
+		--color-primary-light: #08aeef; /* kl-blue-500 — brand accent */
+		--color-primary-dark: #0a2f52; /* kl-blue-800 — pressed, white 13.6:1 */
+		--color-accent: #075ea8; /* accent text/icons on bg — 6.3:1 (AA) */
 		--color-success: #16a34a;
-		--color-warning: #d97706;
+		--color-warning: #b45309; /* darkened from #d97706 for 4.5:1 on light bg */
 		--color-error: #dc2626;
 		--safe-area-top: env(safe-area-inset-top);
 		--safe-area-bottom: env(safe-area-inset-bottom);
@@ -20,14 +37,15 @@
 	}
 
 	.dark {
-		--color-bg: #0c0a09;
-		--color-surface: #1c1917;
-		--color-text: #fafaf9;
-		--color-text-secondary: #a8a29e;
-		--color-border: #292524;
-		--color-primary: #2dd4bf;
-		--color-primary-light: #5eead4;
-		--color-primary-dark: #14b8a6;
+		--color-bg: #050608; /* kl-black */
+		--color-surface: #0d1014; /* kl-neutral-900 */
+		--color-text: #f7fafc; /* kl-white — 19.3:1 on bg */
+		--color-text-secondary: #bec5cd; /* kl-neutral-200 — 11.6:1 on bg */
+		--color-border: #20252c; /* kl-neutral-700 */
+		--color-primary: #075ea8; /* kl-blue-700 — fill; white text 6.6:1 (AA) */
+		--color-primary-light: #27c4f4; /* kl-blue-400 — brand accent, 9.9:1 on bg */
+		--color-primary-dark: #0a2f52; /* kl-blue-800 */
+		--color-accent: #27c4f4; /* kl-blue-400 — accent text/icons on dark bg 9.3:1 */
 		--color-success: #4ade80;
 		--color-warning: #fbbf24;
 		--color-error: #f87171;

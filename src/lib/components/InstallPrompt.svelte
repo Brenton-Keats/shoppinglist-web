@@ -112,7 +112,7 @@
 	>
 		<div class="flex items-start gap-3">
 			<div class="flex-shrink-0 rounded-xl bg-[var(--color-primary)]/10 p-2">
-				<Smartphone size={24} class="text-[var(--color-primary)]" />
+				<Smartphone size={24} class="text-[var(--color-accent)]" />
 			</div>
 			<div class="flex-1">
 				<h3 class="text-base-mobile font-semibold text-[var(--color-text)]">

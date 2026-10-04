@@ -106,7 +106,7 @@
 						bind:this={nameInput}
 						bind:value={name}
 						placeholder="e.g. Milk, Bread, Apples..."
-						class="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-base text-[var(--color-text)] outline-none transition-colors focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
+						class="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-base text-[var(--color-text)] outline-none transition-colors focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-accent)]/20"
 						required
 					/>
 				</div>

@@ -1,16 +1,53 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid meet">
+  <!--
+    KeatsLabs mark — PWA app icon (declared "any maskable").
+    Derived from k-labs-branding/keatslabs-mark-bg.svg. The full-bleed gradient
+    background is intentional: maskable icons must paint the whole canvas so the
+    platform can crop to its own shape (circle, squircle, rounded square). The
+    source's rx=42 corner radius is dropped here and left to the OS mask.
+  -->
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0f766e"/>
-      <stop offset="100%" style="stop-color:#115e59"/>
+    <linearGradient id="mark-white" x1="0" y1="0" x2="0.05" y2="1">
+      <stop offset="0" stop-color="#F7FAFC"/>
+      <stop offset="0.56" stop-color="#E3E7EB"/>
+      <stop offset="1" stop-color="#BEC5CD"/>
     </linearGradient>
+    <linearGradient id="liquid-blue" x1="0" y1="0" x2="0.75" y2="1">
+      <stop offset="0" stop-color="#27C4F4"/>
+      <stop offset="1" stop-color="#087FCE"/>
+    </linearGradient>
+    <linearGradient id="background-gradient" x1="0.146447" y1="0.853553" x2="0.853553" y2="0.146447">
+      <stop offset="0" stop-color="#06111F"/>
+      <stop offset="1" stop-color="#075EA8"/>
+    </linearGradient>
+
+    <mask id="k-separation-mask" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" x="0" y="0" width="300" height="270">
+      <rect x="0" y="0" width="300" height="270" fill="white"/>
+      <path d="M87 78H121V128C121 132 122 135 124 139L165 207C169 214 168 220 162 226C158 231 152 233 143 233H57C49 233 43 230 39 225C35 220 35 214 39 206L82 135C85 130 87 124 87 117V78Z" fill="black" stroke="black" stroke-width="13" stroke-linejoin="round"/>
+    </mask>
+
+    <clipPath id="flask-clip">
+      <path d="M87 78H121V128C121 132 122 135 124 139L165 207C169 214 168 220 162 226C158 231 152 233 143 233H57C49 233 43 230 39 225C35 220 35 214 39 206L82 135C85 130 87 124 87 117V78Z"/>
+    </clipPath>
   </defs>
-  <rect width="512" height="512" rx="128" fill="url(#bg)"/>
-  <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
-    <path stroke-width="24" d="M128 160h32l48 144h176l40-96H192"/>
-    <circle cx="216" cy="352" r="20" stroke-width="20"/>
-    <circle cx="360" cy="352" r="20" stroke-width="20"/>
-    <path stroke-width="16" d="M176 128l-16 32M336 128l16 32"/>
+
+  <rect id="background" x="0" y="0" width="300" height="300" fill="url(#background-gradient)"/>
+  <g transform="translate(0 15.000)">
+    <g id="K" fill="url(#mark-white)" mask="url(#k-separation-mask)">
+      <rect x="87" y="78" width="34" height="152"/>
+      <polygon points="116.330,147.747 242.441,49.000 177.559,49.000 91.670,116.253"/>
+      <polygon points="90.423,146.685 180.539,230.000 239.461,230.000 117.577,117.315"/>
+    </g>
+
+    <path id="flask" d="M87 78H121V128C121 132 122 135 124 139L165 207C169 214 168 220 162 226C158 231 152 233 143 233H57C49 233 43 230 39 225C35 220 35 214 39 206L82 135C85 130 87 124 87 117V78Z" fill="url(#mark-white)" stroke="url(#mark-white)" stroke-width="1"/>
+
+    <g clip-path="url(#flask-clip)">
+      <path id="liquid" fill="url(#liquid-blue)" d="M34 239V195.0 C54 202.0 76 204.0 95 199.0 C116 193.0 130 180.0 147 180.0 C154 180.0 160 183.0 166 187.0 L172 239Z"/>
+    </g>
+
+    <circle cx="104" cy="43" r="11" fill="url(#liquid-blue)"/>
+    <circle cx="137" cy="38" r="7" fill="url(#liquid-blue)"/>
+    <circle cx="144" cy="70" r="10" fill="url(#liquid-blue)"/>
   </g>
-  <path fill="#ffffff" opacity="0.15" d="M0 384h512v128H0z"/>
 </svg>

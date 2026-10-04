@@ -14,8 +14,8 @@ export default defineConfig({
 				description: 'Offline-first shared shopping list',
 				start_url: './',
 				display: 'standalone',
-				background_color: '#ffffff',
-				theme_color: '#0f766e',
+				background_color: '#050608',
+				theme_color: '#075ea8',
 				orientation: 'portrait-primary',
 				scope: './',
 				icons: [

@@ -141,7 +141,7 @@
 					<div class="flex flex-col gap-4">
 						{#each groupedItems as group}
 							<div>
-								<h3 class="mb-2 text-sm font-semibold uppercase tracking-wide text-[var(--color-primary)]">
+								<h3 class="mb-2 text-sm font-semibold uppercase tracking-wide text-[var(--color-accent)]">
 									{group.primaryName}
 								</h3>
 								{#each group.secondaryGroups as subGroup}

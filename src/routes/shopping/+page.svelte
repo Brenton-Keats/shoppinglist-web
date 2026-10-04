@@ -90,7 +90,7 @@
 	<div class="flex-1 overflow-y-auto px-4 pb-24">
 		{#if listStore.loading}
 			<div class="flex items-center justify-center py-16">
-				<div class="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-primary)]"></div>
+				<div class="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-accent)]"></div>
 			</div>
 		{:else if totalItems === 0}
 			<EmptyState
@@ -107,7 +107,7 @@
 
 				<div class="mt-4 first:mt-2">
 					<!-- Section header -->
-					<h2 class="sticky top-0 z-10 bg-[var(--color-bg)] py-2 text-xs font-semibold uppercase tracking-wide {incomplete.length === 0 ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-primary)]'}">
+					<h2 class="sticky top-0 z-10 bg-[var(--color-bg)] py-2 text-xs font-semibold uppercase tracking-wide {incomplete.length === 0 ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-accent)]'}">
 						{group.name}
 						{#if incomplete.length > 0}
 							<span class="ml-1 font-normal">({incomplete.length})</span>

@@ -74,7 +74,7 @@
 				<div class="p-2">
 					{#if strongSuggestions.length > 0}
 						<div class="mb-2 px-2 py-1">
-							<span class="text-xs font-medium text-[var(--color-primary)]">
+							<span class="text-xs font-medium text-[var(--color-accent)]">
 								Strongly suggested
 							</span>
 						</div>
@@ -84,7 +84,7 @@
 								class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors active:bg-[var(--color-border)]"
 							>
 								<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)]/10">
-									<Plus size={16} class="text-[var(--color-primary)]" />
+									<Plus size={16} class="text-[var(--color-accent)]" />
 								</div>
 								<div class="flex-1 min-w-0">
 									<div class="truncate text-sm font-medium text-[var(--color-text)]">

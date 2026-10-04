@@ -180,7 +180,7 @@
 {#if isLoading}
 	<div class="flex items-center justify-center py-12">
 		<div
-			class="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-primary)]"
+			class="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-accent)]"
 		></div>
 	</div>
 {:else if projectedGroups.length === 0 || totalItems === 0}

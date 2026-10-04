@@ -163,7 +163,7 @@
 						<select
 							value={preferencesStore.syncInterval}
 							onchange={(e) => preferencesStore.setSyncInterval(Number(e.currentTarget.value))}
-							class="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+							class="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
 						>
 							{#each syncIntervals as interval}
 								<option value={interval.value}>{interval.label}</option>
@@ -201,7 +201,7 @@
 						{#each viewModes as mode}
 							<button
 								onclick={() => preferencesStore.setViewMode(mode.value)}
-								class="flex flex-1 flex-col items-center gap-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors {preferencesStore.viewMode === mode.value ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]' : 'border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text-secondary)]'}"
+								class="flex flex-1 flex-col items-center gap-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors {preferencesStore.viewMode === mode.value ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-accent)]' : 'border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text-secondary)]'}"
 							>
 								<mode.icon size={18} />
 								{mode.label}
@@ -216,7 +216,7 @@
 						{#each themes as t}
 							<button
 								onclick={() => uiStore.setTheme(t.value)}
-								class="flex flex-1 flex-col items-center gap-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors {preferencesStore.theme === t.value ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]' : 'border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text-secondary)]'}"
+								class="flex flex-1 flex-col items-center gap-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors {preferencesStore.theme === t.value ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-accent)]' : 'border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text-secondary)]'}"
 							>
 								<t.icon size={18} />
 								{t.label}
