@@ -30,6 +30,12 @@ export async function syncWithRetry(
 			if (result) {
 				return true;
 			}
+			// performSync sets state itself and returns false on failure. If it's
+			// an auth condition (not signed in), that's terminal for this run —
+			// don't retry or overwrite the unauthenticated state with an error.
+			if (syncStateStore.state.status === 'unauthenticated') {
+				return false;
+			}
 		} catch (error) {
 			const isApiError =
 				error instanceof Error &&

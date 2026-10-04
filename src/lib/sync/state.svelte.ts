@@ -5,6 +5,7 @@ export type SyncState =
 	| { status: 'syncing' }
 	| { status: 'pending'; count: number }
 	| { status: 'offline' }
+	| { status: 'unauthenticated' }
 	| { status: 'error'; message: string };
 
 class SyncStateStore {
@@ -57,6 +58,10 @@ class SyncStateStore {
 
 	setOffline(): void {
 		this.state = { status: 'offline' };
+	}
+
+	setUnauthenticated(): void {
+		this.state = { status: 'unauthenticated' };
 	}
 
 	setError(message: string): void {

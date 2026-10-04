@@ -9,7 +9,10 @@
  */
 import { ENV } from '$lib/config/env';
 import { authStore } from './state.svelte';
-import { getIdToken, initGoogleAuth } from './google';
+import { getIdToken, ensureFreshToken, initGoogleAuth } from './google';
+
+/** Sentinel message used to flag "not signed in" distinctly from real errors. */
+export const UNAUTHENTICATED = 'unauthenticated';
 
 export type AuthMode = 'google' | 'apikey';
 
@@ -37,14 +40,18 @@ export interface RequestAuth {
 }
 
 /**
- * Resolves auth material for a request. Throws when Google mode is active but
- * no valid token is available, so the caller can surface "sign in required".
+ * Resolves auth material for a request. In Google mode, if no valid token is
+ * held it kicks off a background silent renewal and throws the UNAUTHENTICATED
+ * sentinel so the caller can represent this as "not signed in" (not an error).
+ * The renewal result lands on a later sync tick.
  */
 export function resolveRequestAuth(): RequestAuth {
 	if (authMode() === 'google') {
 		const token = getIdToken();
 		if (!token) {
-			throw new Error('Sign in required');
+			// Fire-and-forget: try to get a token silently for the next tick.
+			void ensureFreshToken();
+			throw new Error(UNAUTHENTICATED);
 		}
 		return { headers: { Authorization: `Bearer ${token}` } };
 	}

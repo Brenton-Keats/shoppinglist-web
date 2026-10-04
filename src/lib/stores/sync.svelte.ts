@@ -55,6 +55,10 @@ class SyncStore {
 				this.status = 'offline';
 				this.error = null;
 				break;
+			case 'unauthenticated':
+				this.status = 'unauthenticated';
+				this.error = null;
+				break;
 			case 'error':
 				this.status = 'error';
 				this.error = state.message;

@@ -1,8 +1,15 @@
 <script lang="ts">
-	import { Check, CircleAlert, Loader2, WifiOff } from '@lucide/svelte';
+	import { Check, CircleAlert, Loader2, WifiOff, LogIn } from '@lucide/svelte';
 	import { syncStore } from '$lib/stores/sync.svelte';
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	function handleClick() {
+		if (syncStore.status === 'unauthenticated') {
+			// Sign-in requires a user gesture; send them to Settings → Account.
+			goto(resolve('/settings'));
+			return;
+		}
 		if (syncStore.status === 'pending' || syncStore.status === 'error') {
 			syncStore.sync();
 		}
@@ -29,6 +36,9 @@
 	{:else if syncStore.status === 'offline'}
 		<WifiOff size={14} class="text-[var(--color-warning)]" />
 		<span class="text-[var(--color-warning)]">Offline</span>
+	{:else if syncStore.status === 'unauthenticated'}
+		<LogIn size={14} class="text-[var(--color-text-secondary)]" />
+		<span class="text-[var(--color-text-secondary)]">Sign in</span>
 	{:else if syncStore.status === 'error'}
 		<CircleAlert size={14} class="text-[var(--color-error)]" />
 		<span class="text-[var(--color-error)]">Error</span>

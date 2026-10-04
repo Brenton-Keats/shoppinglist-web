@@ -10,7 +10,7 @@
  */
 
 import { ENV } from '$lib/config/env';
-import { resolveRequestAuth } from '$lib/auth';
+import { resolveRequestAuth, UNAUTHENTICATED } from '$lib/auth';
 import type { List, Section, Store, Product, ListItem, Setting } from '$lib/types';
 
 const REQUEST_TIMEOUT_MS = 30000;
@@ -106,8 +106,8 @@ function handleFetchError(error: unknown): ApiErrorImpl {
 		return error;
 	}
 
-	if (error instanceof Error && error.message === 'Sign in required') {
-		return new ApiErrorImpl('auth', error.message);
+	if (error instanceof Error && error.message === UNAUTHENTICATED) {
+		return new ApiErrorImpl('auth', UNAUTHENTICATED);
 	}
 
 	if (error instanceof TypeError) {

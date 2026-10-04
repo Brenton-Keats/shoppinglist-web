@@ -12,6 +12,8 @@ class AuthStore {
 	ready = $state(false);
 	/** True when a valid ID token is held. */
 	signedIn = $state(false);
+	/** True when silent renewal failed and an explicit (gesture) sign-in is needed. */
+	needsSignIn = $state(false);
 	/** Signed-in account email, if known. */
 	email = $state<string | null>(null);
 	/** Last auth error message, if any. */

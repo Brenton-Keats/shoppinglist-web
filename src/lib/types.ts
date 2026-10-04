@@ -79,7 +79,13 @@ export interface Setting {
 export type ViewMode = 'STORE_SECTION' | 'SECTION_STORE';
 
 // Sync status
-export type SyncStatus = 'synced' | 'pending' | 'syncing' | 'error' | 'offline';
+export type SyncStatus =
+	| 'synced'
+	| 'pending'
+	| 'syncing'
+	| 'error'
+	| 'offline'
+	| 'unauthenticated';
 
 // Local preferences
 export interface LocalPreferences {

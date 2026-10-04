@@ -8,7 +8,22 @@ import { getOrCreateDeviceId } from '$lib/utils/id';
 import { fetchServerData, submitChanges } from './api';
 import { syncStateStore } from './state.svelte';
 import { resolveConflict, type ServerChange } from './conflict';
+import { UNAUTHENTICATED } from '$lib/auth';
 import type { BaseEntity } from '$lib/types';
+
+/**
+ * Maps a caught sync error to the appropriate sync state. "Not signed in" is a
+ * normal condition (unauthenticated), not an error.
+ */
+function reportSyncFailure(error: unknown): void {
+	const message = error instanceof Error ? error.message : String(error);
+	const type = (error as { type?: string } | null)?.type;
+	if (message === UNAUTHENTICATED || type === 'auth') {
+		syncStateStore.setUnauthenticated();
+	} else {
+		syncStateStore.setError(message);
+	}
+}
 
 const ENTITY_TABLE_MAP: Record<string, string> = {
 	List: 'lists',
@@ -165,8 +180,7 @@ export async function performSync(): Promise<boolean> {
 
 		return dataChanged;
 	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		syncStateStore.setError(message);
+		reportSyncFailure(error);
 		return false;
 	}
 }
@@ -226,8 +240,7 @@ export async function fetchInitialData(): Promise<boolean> {
 
 		return true;
 	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		syncStateStore.setError(message);
+		reportSyncFailure(error);
 		return false;
 	}
 }
