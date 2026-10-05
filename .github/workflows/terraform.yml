@@ -137,6 +137,21 @@ jobs:
           path: terraform/tfplan
           retention-days: 1
 
+      # When there are no changes, apply is skipped, so publish the current
+      # outputs from here — state is unchanged, so these are authoritative.
+      # (When there ARE changes, apply publishes the post-apply outputs instead.)
+      - name: Export Terraform outputs
+        if: steps.plan.outputs.has_changes == 'false'
+        run: terraform output -json > tf-outputs.json
+
+      - name: Upload Terraform outputs artifact
+        if: steps.plan.outputs.has_changes == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tf-outputs
+          path: terraform/tf-outputs.json
+          retention-days: 7
+
   apply:
     needs: plan
     if: >-
@@ -175,6 +190,8 @@ jobs:
       - run: terraform init
       - run: terraform apply -input=false tfplan
 
+      # Publish the post-apply outputs (authoritative after a change). On
+      # no-change runs apply is skipped and the plan job publishes instead.
       - name: Export Terraform outputs
         run: terraform output -json > tf-outputs.json
 
