@@ -1,8 +1,7 @@
 import { db } from '$lib/db/database';
 import { getEntityById, softDeleteEntity } from '$lib/db/operations';
 import { markChangesSynced } from '$lib/db/changes';
-import { serialize } from '$lib/db/serialize';
-import { normalizeArray } from '$lib/db/normalize';
+import { normalizeArray, normalizeEntity } from '$lib/db/normalize';
 import { getPendingChanges } from '$lib/db/queries';
 import { getOrCreateDeviceId } from '$lib/utils/id';
 import { fetchServerData, submitChanges } from './api';
@@ -72,6 +71,16 @@ export async function applyServerChanges(serverChanges: ServerChange[]): Promise
 			continue;
 		}
 
+		// Normalize server data at the ingestion boundary, exactly as the full
+		// fetch path does (fetchInitialData → normalizeArray). This converts
+		// empty-string dates to null, coerces boolean/number fields, and strips
+		// reactive proxies, so downstream code (conflict comparison, grouping,
+		// date formatting) can trust the canonical TypeScript types.
+		const normalized = normalizeEntity({
+			...change.data,
+			id: change.entityId
+		}) as BaseEntity;
+
 		if (change.operation === 'create') {
 			if (localEntity) {
 				const winner = resolveConflict(localEntity, {
@@ -79,10 +88,10 @@ export async function applyServerChanges(serverChanges: ServerChange[]): Promise
 					data: change.data
 				});
 				if (winner === 'server') {
-					await db.table(table).put({ ...change.data, id: change.entityId } as BaseEntity);
+					await db.table(table).put(normalized);
 				}
 			} else {
-				await db.table(table).add({ ...change.data, id: change.entityId } as BaseEntity);
+				await db.table(table).add(normalized);
 			}
 			continue;
 		}
@@ -94,10 +103,10 @@ export async function applyServerChanges(serverChanges: ServerChange[]): Promise
 					data: change.data
 				});
 				if (winner === 'server') {
-					await db.table(table).update(change.entityId, change.data as Record<string, unknown>);
+					await db.table(table).update(change.entityId, normalized as Record<string, unknown>);
 				}
 			} else {
-				await db.table(table).add({ ...change.data, id: change.entityId } as BaseEntity);
+				await db.table(table).add(normalized);
 			}
 			continue;
 		}

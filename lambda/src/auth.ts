@@ -1,10 +1,10 @@
 /**
  * Pluggable authentication.
  *
- * Phase 1 implements the shared-API-key scheme that the current frontend and
- * Apps Script backend use, so the migration is behaviour-preserving. The
- * Authenticator interface is intentionally generic so Phase 5 can drop in a
- * Google ID-token verifier without touching the handlers.
+ * This module provides the shared-API-key scheme as a fallback. The generic
+ * Authenticator interface lets the handlers stay auth-agnostic; the deployment
+ * selects the Google ID-token verifier (src/googleAuth.ts) when GOOGLE_CLIENT_ID
+ * is configured and falls back to the shared key otherwise (see src/index.ts).
  */
 
 export interface AuthContext {
@@ -34,7 +34,7 @@ export type Authenticator = (ctx: AuthContext) => AuthResult | Promise<AuthResul
 export function createApiKeyAuthenticator(expectedKey: string | undefined): Authenticator {
   return (ctx: AuthContext): AuthResult => {
     if (!expectedKey) {
-      // No key configured — allow all (matches Apps Script behaviour).
+      // No key configured — allow all (open mode for local/unauthenticated use).
       return { ok: true };
     }
     if (ctx.apiKeyFromQuery === expectedKey || ctx.apiKeyFromBody === expectedKey) {

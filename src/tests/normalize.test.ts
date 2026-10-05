@@ -78,7 +78,7 @@ describe('normalizeEntity', () => {
 		expect(result.status).toBe('ACTIVE');
 	});
 
-	it('handles a complete Store entity from Google Sheets', () => {
+	it('handles a complete Store entity with legacy string-typed fields', () => {
 		const raw = {
 			id: 'store-1',
 			name: 'Coles',
@@ -100,7 +100,7 @@ describe('normalizeEntity', () => {
 		});
 	});
 
-	it('handles a complete ListItem entity from Google Sheets', () => {
+	it('handles a complete ListItem entity with legacy string-typed fields', () => {
 		const raw = {
 			id: 'item-1',
 			list_id: 'list-1',

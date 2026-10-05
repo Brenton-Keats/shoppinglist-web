@@ -68,4 +68,45 @@ describe('resolveConflict', () => {
     };
     expect(resolveConflict(change, server).winner).toBe('server');
   });
+
+  it('valid client timestamp beats an invalid server timestamp', () => {
+    const badServer: EntityRecord = { ...server, updated_at: '', created_at: '' };
+    const change: ClientChange = {
+      id: 'c1', entityType: 'Product', entityId: 'a1', operation: 'update',
+      data: { updated_at: '2026-08-16T12:00:00.000Z' },
+    };
+    const res = resolveConflict(change, badServer);
+    expect(res.winner).toBe('client');
+    expect(res.reason).toBe('client_timestamp_valid');
+  });
+
+  it('valid server timestamp beats a missing/invalid client timestamp', () => {
+    const change: ClientChange = {
+      id: 'c1', entityType: 'Product', entityId: 'a1', operation: 'update',
+      data: { name: 'No timestamp' },
+    };
+    const res = resolveConflict(change, server);
+    expect(res.winner).toBe('server');
+    expect(res.reason).toBe('server_timestamp_valid');
+  });
+
+  it('both timestamps invalid falls back to deterministic server-wins', () => {
+    const badServer: EntityRecord = { ...server, updated_at: '', created_at: '' };
+    const change: ClientChange = {
+      id: 'c1', entityType: 'Product', entityId: 'a1', operation: 'update',
+      data: { updated_at: '' },
+    };
+    const res = resolveConflict(change, badServer);
+    expect(res.winner).toBe('server');
+    expect(res.reason).toBe('default_server_wins');
+  });
+
+  it('hasConflict ignores an invalid server timestamp (no false conflict)', () => {
+    const badServer: EntityRecord = { ...server, updated_at: '' };
+    const change: ClientChange = {
+      id: 'c1', entityType: 'Product', entityId: 'a1', operation: 'update',
+      data: { updated_at: '2026-08-16T09:00:00.000Z' },
+    };
+    expect(hasConflict(change, badServer)).toBe(false);
+  });
 });

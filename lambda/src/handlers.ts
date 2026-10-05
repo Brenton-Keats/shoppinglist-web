@@ -39,7 +39,8 @@ export async function handlePostSync(store: Store, body: SyncRequest): Promise<S
   const clientChanges: ClientChange[] = body.changes || [];
 
   const acceptedIds: string[] = [];
-  const acceptedChanges: ClientChange[] = [];
+  /** Accepted changes paired with the canonical record the server wrote. */
+  const accepted: Array<{ change: ClientChange; record: Record<string, unknown> }> = [];
   const conflicts: ConflictReport[] = [];
 
   const now = new Date().toISOString();
@@ -50,7 +51,7 @@ export async function handlePostSync(store: Store, body: SyncRequest): Promise<S
     if (hasConflict(change, serverData)) {
       const resolution = resolveConflict(change, serverData!);
       if (resolution.winner === 'client') {
-        await applyChange(
+        const record = await applyChange(
           store,
           change.entityType,
           change.entityId,
@@ -58,8 +59,10 @@ export async function handlePostSync(store: Store, body: SyncRequest): Promise<S
           change.data || {},
           now,
         );
-        acceptedChanges.push(change);
-        acceptedIds.push(change.id);
+        if (record) {
+          accepted.push({ change, record });
+          acceptedIds.push(change.id);
+        }
       }
       conflicts.push({
         changeId: change.id,
@@ -69,7 +72,7 @@ export async function handlePostSync(store: Store, body: SyncRequest): Promise<S
         reason: resolution.reason,
       });
     } else {
-      const applied = await applyChange(
+      const record = await applyChange(
         store,
         change.entityType,
         change.entityId,
@@ -77,20 +80,23 @@ export async function handlePostSync(store: Store, body: SyncRequest): Promise<S
         change.data || {},
         now,
       );
-      if (applied) {
-        acceptedChanges.push(change);
+      if (record) {
+        accepted.push({ change, record });
         acceptedIds.push(change.id);
       }
     }
   }
 
-  // Assign revisions and persist the change log in one batch.
-  if (acceptedChanges.length > 0) {
-    const lastRevision = await store.allocateRevisions(acceptedChanges.length);
-    const startRevision = lastRevision - acceptedChanges.length + 1;
+  // Assign revisions and persist the change log in one batch. The payload is
+  // the canonical record the server actually wrote (type-enforced), NOT the raw
+  // client data — so devices pulling the change log receive complete,
+  // well-formed entities whose updated_at matches the stored row.
+  if (accepted.length > 0) {
+    const lastRevision = await store.allocateRevisions(accepted.length);
+    const startRevision = lastRevision - accepted.length + 1;
     const logTimestamp = new Date().toISOString();
 
-    const records: ChangeRecord[] = acceptedChanges.map((change, i) => ({
+    const records: ChangeRecord[] = accepted.map(({ change, record }, i) => ({
       revision: startRevision + i,
       id: randomUUID(),
       timestamp: logTimestamp,
@@ -98,7 +104,7 @@ export async function handlePostSync(store: Store, body: SyncRequest): Promise<S
       entity_type: change.entityType,
       entity_id: change.entityId,
       operation: change.operation,
-      payload: change.data || {},
+      payload: record,
     }));
 
     await store.putChanges(records);

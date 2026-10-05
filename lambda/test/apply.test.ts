@@ -73,4 +73,106 @@ describe('computeEntityWrite', () => {
     const rec = computeEntityWrite(ENTITY_COLUMNS.Store, 'nope', 'delete', {}, null, NOW);
     expect(rec).toBeNull();
   });
+
+  describe('type-scheme enforcement', () => {
+    it('coerces empty-string date fields to null on create', () => {
+      const rec = computeEntityWrite(
+        ENTITY_COLUMNS.List,
+        'l1',
+        'create',
+        { name: 'Groceries', status: 'ACTIVE', started_at: '', archived_at: '', deleted_at: '' },
+        null,
+        NOW,
+      )!;
+      expect(rec.started_at).toBeNull();
+      expect(rec.archived_at).toBeNull();
+      expect(rec.deleted_at).toBeNull();
+    });
+
+    it('coerces invalid date strings to null on update', () => {
+      const existing: EntityRecord = {
+        id: 'i1', list_id: 'l1', product_id: 'p1', name_snapshot: 'Milk',
+        completed: false, completed_at: null, created_at: NOW, updated_at: NOW, deleted_at: null,
+      };
+      const rec = computeEntityWrite(
+        ENTITY_COLUMNS.ListItem,
+        'i1',
+        'update',
+        { completed: true, completed_at: 'not-a-date' },
+        existing,
+        NOW,
+      )!;
+      expect(rec.completed).toBe(true);
+      expect(rec.completed_at).toBeNull();
+    });
+
+    it('coerces "true"/"false" strings and 0/1 to booleans', () => {
+      const rec = computeEntityWrite(
+        ENTITY_COLUMNS.Section,
+        's1',
+        'create',
+        { name: 'Produce', list_id: 'l1', active: 'false' },
+        null,
+        NOW,
+      )!;
+      expect(rec.active).toBe(false);
+    });
+
+    it('coerces numeric strings to numbers and junk sort_order to 0', () => {
+      const rec = computeEntityWrite(
+        ENTITY_COLUMNS.Store,
+        's1',
+        'create',
+        { name: 'Coles', sort_order: '5' },
+        null,
+        NOW,
+      )!;
+      expect(rec.sort_order).toBe(5);
+
+      const rec2 = computeEntityWrite(
+        ENTITY_COLUMNS.Store,
+        's2',
+        'create',
+        { name: 'Woolies', sort_order: 'abc' },
+        null,
+        NOW,
+      )!;
+      expect(rec2.sort_order).toBe(0);
+    });
+
+    it('coerces empty-string foreign keys to null', () => {
+      const rec = computeEntityWrite(
+        ENTITY_COLUMNS.ListItem,
+        'i1',
+        'create',
+        { list_id: 'l1', product_id: 'p1', name_snapshot: 'Milk', section_id: '', store_id: '' },
+        null,
+        NOW,
+      )!;
+      expect(rec.section_id).toBeNull();
+      expect(rec.store_id).toBeNull();
+    });
+
+    it('keeps a valid client created_at but ignores an invalid one', () => {
+      const good = computeEntityWrite(
+        ENTITY_COLUMNS.Product,
+        'p1',
+        'create',
+        { name: 'Milk', created_at: '2026-01-01T00:00:00.000Z' },
+        null,
+        NOW,
+      )!;
+      expect(good.created_at).toBe('2026-01-01T00:00:00.000Z');
+
+      const bad = computeEntityWrite(
+        ENTITY_COLUMNS.Product,
+        'p2',
+        'create',
+        { name: 'Eggs', created_at: '' },
+        null,
+        NOW,
+      )!;
+      expect(bad.created_at).toBe(NOW);
+    });
+  });
 });

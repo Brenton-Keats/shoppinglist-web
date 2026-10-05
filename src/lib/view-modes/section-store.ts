@@ -1,6 +1,6 @@
 import type { ListItem, Product, Section, Store } from '$lib/types';
 import type { PrimaryGroup, SecondaryGroup, GroupedItem } from './types';
-import { UNASSIGNED_ID, UNASSIGNED_NAME, UNASSIGNED_SORT_ORDER } from './types';
+import { UNASSIGNED_ID, UNASSIGNED_SORT_ORDER } from './types';
 
 function createProductMap(products: Product[]): Map<string, Product> {
 	const map = new Map<string, Product>();
@@ -10,8 +10,9 @@ function createProductMap(products: Product[]): Map<string, Product> {
 	return map;
 }
 
-function sortBySortOrder<T extends { sort_order: number }>(items: T[]): T[] {
-	return [...items].sort((a, b) => a.sort_order - b.sort_order);
+function toNumericSortOrder(value: string | number): number {
+	const num = typeof value === 'number' ? value : Number(value);
+	return Number.isFinite(num) ? num : 0;
 }
 
 function sortSecondaryGroups(groups: SecondaryGroup[]): SecondaryGroup[] {
@@ -31,7 +32,7 @@ function sortPrimaryGroups(groups: PrimaryGroup[]): PrimaryGroup[] {
 }
 
 function sortGroupedItems(items: GroupedItem[]): GroupedItem[] {
-	return [...items].sort((a, b) => a.item.sort_order - b.item.sort_order);
+	return [...items].sort((a, b) => toNumericSortOrder(a.item.sort_order) - toNumericSortOrder(b.item.sort_order));
 }
 
 function createFallbackProduct(item: ListItem): Product {
@@ -47,6 +48,25 @@ function createFallbackProduct(item: ListItem): Product {
 	};
 }
 
+/** A store/section usable as its own group: present and not soft-deleted. */
+function isUsableStore(store: Store | undefined): store is Store {
+	return store !== undefined && store.deleted_at === null;
+}
+
+function isUsableSection(section: Section | undefined): section is Section {
+	return section !== undefined && section.deleted_at === null;
+}
+
+/**
+ * Group items by section, then store.
+ *
+ * Item-driven: every non-deleted item is placed into exactly one primary and
+ * one secondary group. An item whose section_id/store_id is null, or points at
+ * a section/store that is missing or soft-deleted, folds into the
+ * "Uncategorized" / "Any Store" fallback bucket. No item is ever dropped — the
+ * set of items rendered equals the set of active items on the list, regardless
+ * of view mode.
+ */
 export async function groupBySectionStore(
 	items: ListItem[],
 	products: Product[],
@@ -54,145 +74,112 @@ export async function groupBySectionStore(
 	stores: Store[]
 ): Promise<PrimaryGroup[]> {
 	const productMap = createProductMap(products);
+	const storeMap = new Map(stores.map((s) => [s.id, s] as const));
+	const sectionMap = new Map(sections.map((s) => [s.id, s] as const));
 
-	const activeSections = sortBySortOrder(
-		sections.filter((s) => s.active && s.deleted_at === null)
-	);
+	// Primary bucket (section) → secondary bucket (store) → items.
+	interface SecondaryBucket {
+		id: string;
+		name: string;
+		sort_order: number;
+		items: ListItem[];
+	}
+	interface PrimaryBucket {
+		id: string;
+		name: string;
+		sort_order: number;
+		secondary: Map<string, SecondaryBucket>;
+	}
 
-	const sectionGroups = new Map<string, ListItem[]>();
-	const unassignedSectionItems: ListItem[] = [];
+	const primaries = new Map<string, PrimaryBucket>();
+
+	const getPrimary = (section: Section | undefined): PrimaryBucket => {
+		if (isUsableSection(section)) {
+			let bucket = primaries.get(section.id);
+			if (!bucket) {
+				bucket = {
+					id: section.id,
+					name: section.name,
+					sort_order: toNumericSortOrder(section.sort_order),
+					secondary: new Map()
+				};
+				primaries.set(section.id, bucket);
+			}
+			return bucket;
+		}
+		let bucket = primaries.get(UNASSIGNED_ID);
+		if (!bucket) {
+			bucket = {
+				id: UNASSIGNED_ID,
+				name: 'Uncategorized',
+				sort_order: UNASSIGNED_SORT_ORDER,
+				secondary: new Map()
+			};
+			primaries.set(UNASSIGNED_ID, bucket);
+		}
+		return bucket;
+	};
+
+	const getSecondary = (primary: PrimaryBucket, store: Store | undefined): SecondaryBucket => {
+		if (isUsableStore(store)) {
+			let bucket = primary.secondary.get(store.id);
+			if (!bucket) {
+				bucket = {
+					id: store.id,
+					name: store.name,
+					sort_order: toNumericSortOrder(store.sort_order),
+					items: []
+				};
+				primary.secondary.set(store.id, bucket);
+			}
+			return bucket;
+		}
+		let bucket = primary.secondary.get(UNASSIGNED_ID);
+		if (!bucket) {
+			bucket = {
+				id: UNASSIGNED_ID,
+				name: 'Any Store',
+				sort_order: UNASSIGNED_SORT_ORDER,
+				items: []
+			};
+			primary.secondary.set(UNASSIGNED_ID, bucket);
+		}
+		return bucket;
+	};
 
 	for (const item of items) {
 		if (item.deleted_at !== null) continue;
 
-		if (item.section_id === null) {
-			unassignedSectionItems.push(item);
-		} else {
-			const sectionItems = sectionGroups.get(item.section_id) ?? [];
-			sectionItems.push(item);
-			sectionGroups.set(item.section_id, sectionItems);
-		}
+		const section = item.section_id === null ? undefined : sectionMap.get(item.section_id);
+		const store = item.store_id === null ? undefined : storeMap.get(item.store_id);
+
+		const primary = getPrimary(section);
+		const secondary = getSecondary(primary, store);
+		secondary.items.push(item);
 	}
 
 	const primaryGroups: PrimaryGroup[] = [];
-
-	for (const section of activeSections) {
-		const sectionItems = sectionGroups.get(section.id) ?? [];
-		if (sectionItems.length === 0) continue;
-
-		const storeGroups = new Map<string, ListItem[]>();
-		const unassignedStoreItems: ListItem[] = [];
-
-		for (const item of sectionItems) {
-			if (item.store_id === null) {
-				unassignedStoreItems.push(item);
-			} else {
-				const storeItems = storeGroups.get(item.store_id) ?? [];
-				storeItems.push(item);
-				storeGroups.set(item.store_id, storeItems);
-			}
-		}
-
+	for (const primary of primaries.values()) {
 		const secondaryGroups: SecondaryGroup[] = [];
-
-		const activeStores = sortBySortOrder(
-			stores.filter((s) => s.active && s.deleted_at === null)
-		);
-
-		for (const store of activeStores) {
-			const storeItems = storeGroups.get(store.id) ?? [];
-			if (storeItems.length === 0) continue;
-
+		for (const secondary of primary.secondary.values()) {
+			if (secondary.items.length === 0) continue;
 			secondaryGroups.push({
-				id: store.id,
-				name: store.name,
-				sort_order: store.sort_order,
+				id: secondary.id === UNASSIGNED_ID ? UNASSIGNED_ID : secondary.id,
+				name: secondary.name,
+				sort_order: secondary.sort_order,
 				items: sortGroupedItems(
-					storeItems.map((item) => ({
+					secondary.items.map((item) => ({
 						item,
 						product: productMap.get(item.product_id) ?? createFallbackProduct(item)
 					}))
 				)
 			});
 		}
-
-		if (unassignedStoreItems.length > 0) {
-			secondaryGroups.push({
-				id: UNASSIGNED_ID,
-				name: UNASSIGNED_NAME,
-				sort_order: UNASSIGNED_SORT_ORDER,
-				items: sortGroupedItems(
-					unassignedStoreItems.map((item) => ({
-						item,
-						product: productMap.get(item.product_id) ?? createFallbackProduct(item)
-					}))
-				)
-			});
-		}
-
+		if (secondaryGroups.length === 0) continue;
 		primaryGroups.push({
-			id: section.id,
-			name: section.name,
-			sort_order: section.sort_order,
-			secondaryGroups: sortSecondaryGroups(secondaryGroups)
-		});
-	}
-
-	if (unassignedSectionItems.length > 0) {
-		const storeGroups = new Map<string, ListItem[]>();
-		const unassignedStoreItems: ListItem[] = [];
-
-		for (const item of unassignedSectionItems) {
-			if (item.store_id === null) {
-				unassignedStoreItems.push(item);
-			} else {
-				const storeItems = storeGroups.get(item.store_id) ?? [];
-				storeItems.push(item);
-				storeGroups.set(item.store_id, storeItems);
-			}
-		}
-
-		const secondaryGroups: SecondaryGroup[] = [];
-
-		const activeStores = sortBySortOrder(
-			stores.filter((s) => s.active && s.deleted_at === null)
-		);
-
-		for (const store of activeStores) {
-			const storeItems = storeGroups.get(store.id) ?? [];
-			if (storeItems.length === 0) continue;
-
-			secondaryGroups.push({
-				id: store.id,
-				name: store.name,
-				sort_order: store.sort_order,
-				items: sortGroupedItems(
-					storeItems.map((item) => ({
-						item,
-						product: productMap.get(item.product_id) ?? createFallbackProduct(item)
-					}))
-				)
-			});
-		}
-
-		if (unassignedStoreItems.length > 0) {
-			secondaryGroups.push({
-				id: UNASSIGNED_ID,
-				name: UNASSIGNED_NAME,
-				sort_order: UNASSIGNED_SORT_ORDER,
-				items: sortGroupedItems(
-					unassignedStoreItems.map((item) => ({
-						item,
-						product: productMap.get(item.product_id) ?? createFallbackProduct(item)
-					}))
-				)
-			});
-		}
-
-		primaryGroups.push({
-			id: UNASSIGNED_ID,
-			name: UNASSIGNED_NAME,
-			sort_order: UNASSIGNED_SORT_ORDER,
+			id: primary.id,
+			name: primary.name,
+			sort_order: primary.sort_order,
 			secondaryGroups: sortSecondaryGroups(secondaryGroups)
 		});
 	}

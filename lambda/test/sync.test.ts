@@ -98,4 +98,93 @@ describe('sync flow', () => {
     const data = await handleGetData(store);
     expect(data.lists[0].deleted_at).not.toBeNull();
   });
+
+  it('change-log payload is the canonical server record, not the raw client data', async () => {
+    const store = new InMemoryStore();
+    // Client sends a malformed create: empty-string dates, boolean as string,
+    // and no updated_at of its own on the payload beyond what createChange adds.
+    const res = await handlePostSync(store, {
+      deviceId: 'dev-a',
+      baseRevision: 0,
+      changes: [
+        createChange({
+          entityId: 'list-9',
+          data: {
+            name: 'Messy',
+            status: 'ACTIVE',
+            started_at: '',
+            archived_at: '',
+            deleted_at: '',
+            updated_at: '2026-08-16T10:00:00.000Z',
+          },
+        }),
+      ],
+    });
+
+    expect(res.changes).toHaveLength(1);
+    const payload = res.changes[0].payload as Record<string, unknown>;
+    // Payload carries the full, type-enforced row, not the client's junk.
+    expect(payload.id).toBe('list-9');
+    expect(payload.started_at).toBeNull();
+    expect(payload.archived_at).toBeNull();
+    expect(payload.deleted_at).toBeNull();
+    // updated_at is the server clock, matching the stored entity.
+    const data = await handleGetData(store);
+    expect(payload.updated_at).toBe(data.lists[0].updated_at);
+  });
+
+  it('an accepted update carrying junk dates stores clean values', async () => {
+    const store = new InMemoryStore();
+    // Create with a far-future updated_at so a later client update is accepted
+    // regardless of the server's wall clock (the server stamps updated_at, but
+    // conflict resolution compares the client-supplied timestamps here).
+    await handlePostSync(store, {
+      deviceId: 'dev-a', baseRevision: 0,
+      changes: [createChange({ entityId: 'list-1', data: { name: 'Original', status: 'ACTIVE', updated_at: '2999-01-01T00:00:00.000Z' } })],
+    });
+
+    const before = await handleGetData(store);
+    const serverUpdatedAt = before.lists[0].updated_at as string;
+
+    // A newer update (relative to the server row's updated_at) carrying an
+    // empty-string archived_at. It should be accepted and stored cleanly.
+    const future = new Date(new Date(serverUpdatedAt).getTime() + 60_000).toISOString();
+    const res = await handlePostSync(store, {
+      deviceId: 'dev-b', baseRevision: 1,
+      changes: [createChange({ id: 'u1', operation: 'update', entityId: 'list-1', data: { name: 'Renamed', archived_at: '', updated_at: future } })],
+    });
+
+    expect(res.acceptedChanges).toContain('u1');
+
+    const data = await handleGetData(store);
+    expect(data.lists[0].name).toBe('Renamed');
+    expect(data.lists[0].archived_at).toBeNull();
+    // Dates remain valid ISO strings or null — never empty strings.
+    const archived = data.lists[0].archived_at;
+    expect(archived === null || !Number.isNaN(new Date(archived as string).getTime())).toBe(true);
+  });
+
+  it('rejects a stale update but never writes a junk date', async () => {
+    const store = new InMemoryStore();
+    await handlePostSync(store, {
+      deviceId: 'dev-a', baseRevision: 0,
+      changes: [createChange({ entityId: 'list-1', data: { name: 'Original', status: 'ACTIVE', updated_at: '2999-01-01T00:00:00.000Z' } })],
+    });
+    const before = await handleGetData(store);
+    const serverUpdatedAt = before.lists[0].updated_at as string;
+
+    // A stale update (older than the server row) with an empty-string date.
+    const past = new Date(new Date(serverUpdatedAt).getTime() - 60_000).toISOString();
+    const res = await handlePostSync(store, {
+      deviceId: 'dev-b', baseRevision: 1,
+      changes: [createChange({ id: 'stale', operation: 'update', entityId: 'list-1', data: { name: 'Stale', archived_at: '', updated_at: past } })],
+    });
+
+    expect(res.conflicts?.[0].resolution).toBe('server');
+    expect(res.acceptedChanges).not.toContain('stale');
+
+    const data = await handleGetData(store);
+    expect(data.lists[0].name).toBe('Original');
+    expect(data.lists[0].archived_at).toBeNull();
+  });
 });

@@ -31,6 +31,41 @@ export const ENTITY_TYPES: EntityType[] = [
   'List', 'Section', 'Store', 'Product', 'ListItem',
 ];
 
+/**
+ * Column type scheme the backend enforces on every write. The client is
+ * expected to adhere to this; the server coerces/validates incoming values to
+ * these types so that stored rows and the change log are always canonical.
+ *
+ * - DATE_FIELDS: ISO-8601 string or null. Empty strings and unparseable values
+ *   become null (created_at/updated_at are handled separately by the server
+ *   clock in apply.ts, so they are intentionally NOT listed here).
+ * - BOOLEAN_FIELDS: real booleans. "true"/"false" strings and 0/1 are coerced.
+ * - NUMBER_FIELDS: finite numbers. Numeric strings are coerced; junk → null
+ *   (quantity is nullable; sort_order falls back to 0 — see normalize.ts).
+ * - STRING_FIELDS that are nullable: empty string → null.
+ */
+export const DATE_FIELDS = new Set<string>([
+  'started_at',
+  'archived_at',
+  'completed_at',
+  'deleted_at',
+]);
+
+export const BOOLEAN_FIELDS = new Set<string>(['active', 'completed']);
+
+export const NUMBER_FIELDS = new Set<string>(['sort_order', 'quantity']);
+
+/** Nullable foreign-key / string columns: empty string normalises to null. */
+export const NULLABLE_STRING_FIELDS = new Set<string>([
+  'list_id',
+  'product_id',
+  'section_id',
+  'store_id',
+  'default_section_id',
+  'default_store_id',
+  'unit',
+]);
+
 export const OPERATIONS = {
   CREATE: 'create',
   UPDATE: 'update',

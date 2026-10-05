@@ -133,7 +133,8 @@ describe('IndexedDB operations', () => {
 				}
 			];
 
-			// Add a non-serializable value that might come from Google Sheets
+			// Add non-serializable values (e.g. a Date instance or an undefined
+			// field) that could slip in before the serialization boundary
 			(dataWithBadValues[0] as any).badDate = new Date();
 			(dataWithBadValues[0] as any).undefinedVal = undefined;
 

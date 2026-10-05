@@ -13,8 +13,8 @@ variable "project_name" {
 variable "api_key" {
   description = <<-EOT
     Shared API key the Lambda validates on every request. Leave empty for open
-    access (matches the Apps Script behaviour during initial setup). Passed to
-    the Lambda as the API_KEY environment variable. Marked sensitive.
+    access (unauthenticated, suitable only for initial setup). Passed to the
+    Lambda as the API_KEY environment variable. Marked sensitive.
   EOT
   type        = string
   default     = ""

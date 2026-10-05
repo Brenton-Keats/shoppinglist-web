@@ -1,9 +1,14 @@
 /**
  * Data normalization layer.
  *
- * Transforms raw server/sheet data into canonical TypeScript types.
+ * Transforms raw server data into canonical TypeScript types.
  * Applied ONCE at the ingestion boundary (when data enters IndexedDB).
  * After normalization, all internal code can trust the TypeScript interfaces.
+ *
+ * The Lambda + DynamoDB backend now enforces this same type scheme on write
+ * (see lambda/src/normalize.ts), so canonical data is the norm. This client
+ * layer remains as defense-in-depth: it guards against any legacy rows written
+ * before that enforcement existed, and keeps the ingestion contract explicit.
  *
  * Rules:
  * - Empty strings → null (for nullable fields like deleted_at, archived_at)
@@ -35,7 +40,7 @@ const BOOLEAN_FIELDS = new Set(['active', 'completed', 'synced']);
 const NUMBER_FIELDS = new Set(['sort_order', 'revision', 'quantity']);
 
 /**
- * Normalize a single entity record from server/sheet format to canonical types.
+ * Normalize a single entity record from the server response to canonical types.
  */
 export function normalizeEntity<T extends Record<string, unknown>>(raw: T): T {
 	const result = { ...raw };
