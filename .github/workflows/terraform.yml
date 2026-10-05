@@ -6,9 +6,10 @@ name: Terraform
 #
 # Structure (single-responsibility jobs):
 #   build  — compile the Lambda package once, publish it as an artifact (no cloud)
-#   plan   — PR / manual: consume the artifact, assume the plan role, terraform plan
-#   apply  — push to main: consume the artifact, assume the apply role, apply,
-#            and publish terraform outputs for the Pages workflow
+#   plan   — all events: consume the artifact, assume the plan role, terraform plan,
+#            and publish the saved plan file (tfplan) as an artifact
+#   apply  — push to main: consume artifacts, assume the apply role, apply the saved
+#            plan, and publish terraform outputs for the Pages workflow
 #
 # No-cloud validation (lambda + frontend tests, builds) lives in ci.yml.
 #
@@ -74,7 +75,6 @@ jobs:
 
   plan:
     needs: build
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: terraform-plan
     defaults:
@@ -114,10 +114,17 @@ jobs:
       - run: terraform init
       - run: terraform fmt -check -recursive
       - run: terraform validate
-      - run: terraform plan -input=false
+      - run: terraform plan -input=false -out=tfplan
+
+      - name: Upload Terraform plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: terraform/tfplan
+          retention-days: 1
 
   apply:
-    needs: build
+    needs: plan
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: terraform-apply
@@ -133,10 +140,11 @@ jobs:
           name: lambda-dist
           path: lambda/dist
 
-      - name: Derive allowed origins (GitHub Pages origin + local dev)
-        run: |
-          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          echo "TF_VAR_allowed_origins=[\"https://${owner}.github.io\",\"http://localhost:5173\"]" >> "$GITHUB_ENV"
+      - name: Download Terraform plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: terraform
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
@@ -149,8 +157,6 @@ jobs:
           terraform_version: 1.16.2
 
       - run: terraform init
-      - run: terraform validate
-      - run: terraform plan -input=false -out=tfplan
       - run: terraform apply -input=false tfplan
 
       - name: Export Terraform outputs
