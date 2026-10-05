@@ -1,6 +1,6 @@
 import type { List, ListItem, Product, Section, Store } from '$lib/types';
 import { db } from '$lib/db/database';
-import { sortKeyAfter } from '$lib/utils/ordering';
+import { sortKeyAfter, compareSortKeys } from '$lib/utils/ordering';
 import {
 	getActiveList,
 	getItemsByList
@@ -114,10 +114,15 @@ class ListStore {
 	): Promise<void> {
 		if (!this.activeList) return;
 
+		const lastProductKey = [...this.products.values()]
+			.sort((a, b) => compareSortKeys(a.sort_order, b.sort_order))
+			.at(-1)?.sort_order ?? null;
+
 		const product = await createProduct({
 			name: name.trim(),
 			default_section_id: sectionId ?? null,
 			default_store_id: storeId ?? null,
+			sort_order: sortKeyAfter(lastProductKey),
 			active: true
 		});
 

@@ -32,7 +32,7 @@ export function sortKeyBefore(firstKey: string | null | undefined): string {
  * Use when inserting between two items.
  * Handles undefined/numeric legacy values by treating them as null.
  */
-export function sortKeyBetween(before: string | number | null | undefined, after: string | number | null | undefined): string {
+export function sortKeyBetween(before: string | null | undefined, after: string | null | undefined): string {
 	const cleanBefore = typeof before === 'string' && before.length > 0 ? before : null;
 	const cleanAfter = typeof after === 'string' && after.length > 0 ? after : null;
 	return generateKeyBetween(cleanBefore, cleanAfter);
@@ -59,24 +59,11 @@ export function generateInitialKeys(count: number): string[] {
  * Compare function for sorting by fractional index string.
  * Use with Array.sort(): items.sort((a, b) => compareSortKeys(a.sort_order, b.sort_order))
  */
-export function compareSortKeys(a: string | number | null | undefined, b: string | number | null | undefined): number {
-	const keyA = normalizeSortKey(a);
-	const keyB = normalizeSortKey(b);
+export function compareSortKeys(a: string | null | undefined, b: string | null | undefined): number {
+	const keyA = a === null || a === undefined || a === '' ? null : a;
+	const keyB = b === null || b === undefined || b === '' ? null : b;
 	if (keyA === keyB) return 0;
-	if (keyA === null) return 1; // null sorts last
+	if (keyA === null) return 1; // null/empty sorts last
 	if (keyB === null) return -1;
 	return keyA < keyB ? -1 : 1;
-}
-
-/**
- * Normalize a sort key value — handles legacy numeric values by
- * converting them to strings that sort in the same relative order.
- */
-function normalizeSortKey(value: string | number | null | undefined): string | null {
-	if (value === null || value === undefined || value === '') return null;
-	if (typeof value === 'number') {
-		// Legacy numeric sort_order: pad to 10 digits for lexicographic sort
-		return String(value).padStart(10, '0');
-	}
-	return value;
 }

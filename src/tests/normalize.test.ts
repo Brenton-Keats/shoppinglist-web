@@ -57,19 +57,13 @@ describe('normalizeEntity', () => {
 		expect(result.completed).toBe(true);
 	});
 
-	it('coerces string sort_order to number', () => {
-		const result = normalizeEntity({ id: '1', sort_order: '3' });
-		expect(result.sort_order).toBe(3);
+	it('preserves a fractional-indexing string sort_order key', () => {
+		const result = normalizeEntity({ id: '1', sort_order: 'a3' });
+		expect(result.sort_order).toBe('a3');
 	});
 
-	it('preserves numeric sort_order', () => {
-		const result = normalizeEntity({ id: '1', sort_order: 5 });
-		expect(result.sort_order).toBe(5);
-	});
-
-	it('coerces non-numeric sort_order string to 0', () => {
-		const result = normalizeEntity({ id: '1', sort_order: 'abc' });
-		expect(result.sort_order).toBe(0);
+	it('falls back to the default key when sort_order is empty', () => {
+		expect(normalizeEntity({ id: '1', sort_order: '' }).sort_order).toBe('a0');
 	});
 
 	it('does not modify fields not in the normalization lists', () => {
@@ -92,7 +86,7 @@ describe('normalizeEntity', () => {
 		expect(result).toEqual({
 			id: 'store-1',
 			name: 'Coles',
-			sort_order: 2,
+			sort_order: '2',
 			active: true,
 			created_at: '2026-01-01T00:00:00Z',
 			updated_at: '2026-01-01T00:00:00Z',
@@ -124,7 +118,7 @@ describe('normalizeEntity', () => {
 		expect(result.unit).toBeNull();
 		expect(result.completed).toBe(false);
 		expect(result.completed_at).toBeNull();
-		expect(result.sort_order).toBe(1);
+		expect(result.sort_order).toBe('1');
 		expect(result.deleted_at).toBeNull();
 	});
 });

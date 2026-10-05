@@ -118,26 +118,60 @@ describe('computeEntityWrite', () => {
       expect(rec.active).toBe(false);
     });
 
-    it('coerces numeric strings to numbers and junk sort_order to 0', () => {
+    it('preserves a fractional-indexing string sort_order key', () => {
       const rec = computeEntityWrite(
         ENTITY_COLUMNS.Store,
         's1',
         'create',
-        { name: 'Coles', sort_order: '5' },
+        { name: 'Coles', sort_order: 'a5' },
         null,
         NOW,
       )!;
-      expect(rec.sort_order).toBe(5);
+      expect(rec.sort_order).toBe('a5');
+    });
 
-      const rec2 = computeEntityWrite(
+    it('falls back to the default sort key when sort_order is absent or empty', () => {
+      const absent = computeEntityWrite(
         ENTITY_COLUMNS.Store,
-        's2',
+        's3',
         'create',
-        { name: 'Woolies', sort_order: 'abc' },
+        { name: 'IGA' },
         null,
         NOW,
       )!;
-      expect(rec2.sort_order).toBe(0);
+      expect(absent.sort_order).toBe('a0');
+
+      const empty = computeEntityWrite(
+        ENTITY_COLUMNS.Store,
+        's4',
+        'create',
+        { name: 'Aldi', sort_order: '' },
+        null,
+        NOW,
+      )!;
+      expect(empty.sort_order).toBe('a0');
+    });
+
+    it('coerces quantity numeric strings to numbers and junk to null', () => {
+      const ok = computeEntityWrite(
+        ENTITY_COLUMNS.ListItem,
+        'i1',
+        'create',
+        { list_id: 'l1', product_id: 'p1', name_snapshot: 'Milk', quantity: '2' },
+        null,
+        NOW,
+      )!;
+      expect(ok.quantity).toBe(2);
+
+      const junk = computeEntityWrite(
+        ENTITY_COLUMNS.ListItem,
+        'i2',
+        'create',
+        { list_id: 'l1', product_id: 'p1', name_snapshot: 'Eggs', quantity: 'abc' },
+        null,
+        NOW,
+      )!;
+      expect(junk.quantity).toBeNull();
     });
 
     it('coerces empty-string foreign keys to null', () => {

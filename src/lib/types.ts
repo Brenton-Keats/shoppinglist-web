@@ -14,23 +14,26 @@ export interface BaseEntity {
 export interface List extends BaseEntity {
 	name: string;
 	status: ListStatus;
-	sort_order: string | number;
+	/** Fractional-indexing key (lexicographically sortable). See utils/ordering. */
+	sort_order: string;
 	started_at: string | null;
 	archived_at: string | null;
 }
 
 // Sections
 export interface Section extends BaseEntity {
-	list_id: string;
+	list_id: string | null;
 	name: string;
-	sort_order: string | number;
+	/** Fractional-indexing key (lexicographically sortable). See utils/ordering. */
+	sort_order: string;
 	active: boolean;
 }
 
 // Stores
 export interface Store extends BaseEntity {
 	name: string;
-	sort_order: string | number;
+	/** Fractional-indexing key (lexicographically sortable). See utils/ordering. */
+	sort_order: string;
 	active: boolean;
 }
 
@@ -39,6 +42,8 @@ export interface Product extends BaseEntity {
 	name: string;
 	default_section_id: string | null;
 	default_store_id: string | null;
+	/** Fractional-indexing key (lexicographically sortable). See utils/ordering. */
+	sort_order: string;
 	active: boolean;
 }
 
@@ -53,7 +58,8 @@ export interface ListItem extends BaseEntity {
 	unit: string | null;
 	completed: boolean;
 	completed_at: string | null;
-	sort_order: string | number;
+	/** Fractional-indexing key (lexicographically sortable). See utils/ordering. */
+	sort_order: string;
 }
 
 // Changes (for sync)

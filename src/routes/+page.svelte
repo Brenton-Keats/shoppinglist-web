@@ -94,7 +94,7 @@
 			const list = await createList({
 				name: 'Shopping List',
 				status: 'ACTIVE',
-				sort_order: 0,
+				sort_order: sortKeyAfter(null),
 				started_at: new Date().toISOString(),
 				archived_at: null
 			});
@@ -152,7 +152,7 @@
 		const list = await createList({
 			name: 'Shopping List',
 			status: 'ACTIVE',
-			sort_order: 0,
+			sort_order: sortKeyAfter(null),
 			started_at: new Date().toISOString(),
 			archived_at: null
 		});
@@ -180,7 +180,7 @@
 		const list = await createList({
 			name: 'Shopping List',
 			status: 'ACTIVE',
-			sort_order: 0,
+			sort_order: sortKeyAfter(null),
 			started_at: new Date().toISOString(),
 			archived_at: null
 		});

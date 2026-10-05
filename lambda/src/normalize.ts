@@ -1,8 +1,10 @@
 import {
   BOOLEAN_FIELDS,
   DATE_FIELDS,
+  DEFAULT_SORT_KEY,
   NULLABLE_STRING_FIELDS,
   NUMBER_FIELDS,
+  SORT_KEY_FIELD,
 } from './config';
 
 /**
@@ -27,6 +29,12 @@ export function isValidISODate(value: unknown): value is string {
  * Columns not covered by any type set are returned unchanged.
  */
 export function coerceFieldValue(key: string, value: unknown): unknown {
+  // sort_order: fractional-indexing string key. Keep non-empty strings; fall
+  // back to the default key when empty/missing.
+  if (key === SORT_KEY_FIELD) {
+    return typeof value === 'string' && value.length > 0 ? value : DEFAULT_SORT_KEY;
+  }
+
   // Date columns: valid ISO string stays; everything else (""/undefined/junk) → null.
   if (DATE_FIELDS.has(key)) {
     return isValidISODate(value) ? value : null;
@@ -40,15 +48,15 @@ export function coerceFieldValue(key: string, value: unknown): unknown {
     return false;
   }
 
-  // Number columns: accept numbers and numeric strings.
+  // Number columns: accept numbers and numeric strings. The only numeric column
+  // is quantity, which is nullable — junk/empty values become null.
   if (NUMBER_FIELDS.has(key)) {
-    if (typeof value === 'number') return Number.isFinite(value) ? value : fallbackNumber(key);
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
     if (typeof value === 'string' && value.trim() !== '') {
       const num = Number(value);
-      return Number.isFinite(num) ? num : fallbackNumber(key);
+      return Number.isFinite(num) ? num : null;
     }
-    // null/undefined/empty: quantity may be null; sort_order defaults to 0.
-    return value === null || value === undefined ? nullableNumber(key) : fallbackNumber(key);
+    return null;
   }
 
   // Nullable string / foreign-key columns: empty string → null.
@@ -57,15 +65,6 @@ export function coerceFieldValue(key: string, value: unknown): unknown {
   }
 
   return value;
-}
-
-/** quantity is nullable; sort_order must always be a number. */
-function nullableNumber(key: string): number | null {
-  return key === 'quantity' ? null : 0;
-}
-
-function fallbackNumber(key: string): number | null {
-  return key === 'quantity' ? null : 0;
 }
 
 /**

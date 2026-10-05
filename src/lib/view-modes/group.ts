@@ -1,4 +1,5 @@
 import type { ViewMode, ListItem, Section, Store } from '$lib/types';
+import { compareSortKeys } from '$lib/utils/ordering';
 
 export interface GroupedItems {
 	primaryId: string;
@@ -8,6 +9,28 @@ export interface GroupedItems {
 		secondaryName: string;
 		items: ListItem[];
 	}[];
+}
+
+/** Sort group keys by the entity's fractional sort_order, with 'none' last. */
+function sortGroupKeys<T extends { sort_order: string }>(
+	keys: string[],
+	entityMap: Map<string, T>
+): string[] {
+	return [...keys].sort((a, b) => {
+		if (a === 'none' && b !== 'none') return 1;
+		if (b === 'none' && a !== 'none') return -1;
+		const ea = entityMap.get(a);
+		const eb = entityMap.get(b);
+		if (!ea && !eb) return 0;
+		if (!ea) return 1;
+		if (!eb) return -1;
+		return compareSortKeys(ea.sort_order, eb.sort_order);
+	});
+}
+
+/** Order items within a bucket by their own fractional sort_order. */
+function sortItems(items: ListItem[]): ListItem[] {
+	return [...items].sort((a, b) => compareSortKeys(a.sort_order, b.sort_order));
 }
 
 export function groupItemsByViewMode(
@@ -28,14 +51,7 @@ export function groupItemsByViewMode(
 			bySection.set(sectionId, list);
 		}
 
-		const sortedSections = [...bySection.keys()].sort((a, b) => {
-			const sa = sectionMap.get(a);
-			const sb = sectionMap.get(b);
-			if (!sa && !sb) return 0;
-			if (!sa) return 1;
-			if (!sb) return -1;
-			return sa.sort_order - sb.sort_order;
-		});
+		const sortedSections = sortGroupKeys([...bySection.keys()], sectionMap);
 
 		return sortedSections.map((sectionId) => {
 			const section = sectionMap.get(sectionId);
@@ -49,14 +65,7 @@ export function groupItemsByViewMode(
 				byStore.set(storeId, list);
 			}
 
-			const sortedStores = [...byStore.keys()].sort((a, b) => {
-				const sa = storeMap.get(a);
-				const sb = storeMap.get(b);
-				if (!sa && !sb) return 0;
-				if (!sa) return 1;
-				if (!sb) return -1;
-				return sa.sort_order - sb.sort_order;
-			});
+			const sortedStores = sortGroupKeys([...byStore.keys()], storeMap);
 
 			return {
 				primaryId: sectionId,
@@ -64,7 +73,7 @@ export function groupItemsByViewMode(
 				secondaryGroups: sortedStores.map((storeId) => ({
 					secondaryId: storeId,
 					secondaryName: storeMap.get(storeId)?.name ?? 'Any Store',
-					items: byStore.get(storeId) ?? []
+					items: sortItems(byStore.get(storeId) ?? [])
 				}))
 			};
 		});
@@ -77,14 +86,7 @@ export function groupItemsByViewMode(
 			byStore.set(storeId, list);
 		}
 
-		const sortedStores = [...byStore.keys()].sort((a, b) => {
-			const sa = storeMap.get(a);
-			const sb = storeMap.get(b);
-			if (!sa && !sb) return 0;
-			if (!sa) return 1;
-			if (!sb) return -1;
-			return sa.sort_order - sb.sort_order;
-		});
+		const sortedStores = sortGroupKeys([...byStore.keys()], storeMap);
 
 		return sortedStores.map((storeId) => {
 			const store = storeMap.get(storeId);
@@ -98,14 +100,7 @@ export function groupItemsByViewMode(
 				bySection.set(sectionId, list);
 			}
 
-			const sortedSections = [...bySection.keys()].sort((a, b) => {
-				const sa = sectionMap.get(a);
-				const sb = sectionMap.get(b);
-				if (!sa && !sb) return 0;
-				if (!sa) return 1;
-				if (!sb) return -1;
-				return sa.sort_order - sb.sort_order;
-			});
+			const sortedSections = sortGroupKeys([...bySection.keys()], sectionMap);
 
 			return {
 				primaryId: storeId,
@@ -113,7 +108,7 @@ export function groupItemsByViewMode(
 				secondaryGroups: sortedSections.map((sectionId) => ({
 					secondaryId: sectionId,
 					secondaryName: sectionMap.get(sectionId)?.name ?? 'Uncategorized',
-					items: bySection.get(sectionId) ?? []
+					items: sortItems(bySection.get(sectionId) ?? [])
 				}))
 			};
 		});

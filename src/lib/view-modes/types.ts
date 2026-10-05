@@ -19,17 +19,21 @@ export interface GroupedItem {
 export interface PrimaryGroup {
 	id: string;
 	name: string;
-	sort_order: number;
+	/** Fractional-indexing key of the underlying store/section (for ordering). */
+	sort_order: string;
 	secondaryGroups: SecondaryGroup[];
 }
 
 export interface SecondaryGroup {
 	id: string | null;
 	name: string;
-	sort_order: number;
+	/** Fractional-indexing key of the underlying store/section (for ordering). */
+	sort_order: string;
 	items: GroupedItem[];
 }
 
 export const UNASSIGNED_ID = '__unassigned__';
 export const UNASSIGNED_NAME = 'Unassigned';
-export const UNASSIGNED_SORT_ORDER = Infinity;
+/** Unassigned groups always sort last. UNASSIGNED_ID is checked explicitly in
+ * the group comparators, so this constant is only a placeholder key value. */
+export const UNASSIGNED_SORT_ORDER = '';

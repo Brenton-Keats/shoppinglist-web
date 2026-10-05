@@ -36,8 +36,12 @@ const NULLABLE_FIELDS = new Set([
 /** Fields that should be boolean */
 const BOOLEAN_FIELDS = new Set(['active', 'completed', 'synced']);
 
-/** Fields that should be number */
-const NUMBER_FIELDS = new Set(['sort_order', 'revision', 'quantity']);
+/** Fields that should be number. sort_order is intentionally excluded: it is a
+ * fractional-indexing STRING key (see utils/ordering), not a number. */
+const NUMBER_FIELDS = new Set(['revision', 'quantity']);
+
+/** Fallback fractional-indexing key for rows missing a usable sort_order. */
+const DEFAULT_SORT_KEY = 'a0';
 
 /**
  * Normalize a single entity record from the server response to canonical types.
@@ -46,6 +50,15 @@ export function normalizeEntity<T extends Record<string, unknown>>(raw: T): T {
 	const result = { ...raw };
 
 	for (const [key, value] of Object.entries(result)) {
+		// sort_order: a fractional-indexing string key. Keep non-empty strings;
+		// fall back to a default key when empty/missing.
+		if (key === 'sort_order') {
+			if (typeof value !== 'string' || value.length === 0) {
+				(result as Record<string, unknown>)[key] = DEFAULT_SORT_KEY;
+			}
+			continue;
+		}
+
 		// Nullable fields: empty string → null
 		if (NULLABLE_FIELDS.has(key) && (value === '' || value === undefined)) {
 			(result as Record<string, unknown>)[key] = null;

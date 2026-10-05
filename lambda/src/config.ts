@@ -53,7 +53,15 @@ export const DATE_FIELDS = new Set<string>([
 
 export const BOOLEAN_FIELDS = new Set<string>(['active', 'completed']);
 
-export const NUMBER_FIELDS = new Set<string>(['sort_order', 'quantity']);
+export const NUMBER_FIELDS = new Set<string>(['quantity']);
+
+/**
+ * sort_order is a fractional-indexing string key (lexicographically sortable),
+ * NOT a number. It is enforced as a non-empty string: empty/missing values fall
+ * back to the default key so lexicographic ordering always has something valid.
+ */
+export const SORT_KEY_FIELD = 'sort_order';
+export const DEFAULT_SORT_KEY = 'a0';
 
 /** Nullable foreign-key / string columns: empty string normalises to null. */
 export const NULLABLE_STRING_FIELDS = new Set<string>([

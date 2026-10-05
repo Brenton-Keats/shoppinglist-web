@@ -9,13 +9,10 @@
 	} from '$lib/db/operations';
 	import { syncStateStore } from '$lib/sync/state.svelte';
 	import { reorderSections } from '$lib/drag-drop/ordering';
+	import { compareSortKeys, sortKeyAfter, sortKeyBetween } from '$lib/utils/ordering';
 	import { findDropTarget } from '$lib/drag-drop/detection';
 	import type { DragStartEvent } from '$lib/drag-drop/detection';
 	import DragHandle from '$lib/components/DragHandle.svelte';
-
-
-	interface Props {
-	}
 
 	let sections = $state<Section[]>([]);
 	let loading = $state(true);
@@ -29,7 +26,7 @@
 
 	async function load() {
 		const all = await getActiveEntities<Section>('sections');
-		sections = all.sort((a, b) => a.sort_order - b.sort_order);
+		sections = all.sort((a, b) => compareSortKeys(a.sort_order, b.sort_order));
 		loading = false;
 	}
 
@@ -55,11 +52,11 @@
 		const name = newName.trim();
 		if (!name) return;
 
-		const maxOrder = sections.length > 0 ? Math.max(...sections.map((s) => s.sort_order)) : 0;
+		const lastKey = sections.length > 0 ? sections[sections.length - 1].sort_order : null;
 		await createSection({
 			list_id: null,
 			name,
-			sort_order: maxOrder + 1,
+			sort_order: sortKeyAfter(lastKey),
 			active: true
 		});
 		newName = '';
@@ -107,21 +104,21 @@
 
 	async function moveUp(index: number) {
 		if (index <= 0) return;
-		const current = sections[index];
-		const prev = sections[index - 1];
-		const temp = current.sort_order;
-		await updateSection(current.id, { sort_order: prev.sort_order });
-		await updateSection(prev.id, { sort_order: temp });
+		// Insert a key between the item two-above (if any) and the item above.
+		const keyAboveAbove = index >= 2 ? sections[index - 2].sort_order : null;
+		const keyAbove = sections[index - 1].sort_order;
+		const newKey = sortKeyBetween(keyAboveAbove, keyAbove);
+		await updateSection(sections[index].id, { sort_order: newKey });
 		await load();
 	}
 
 	async function moveDown(index: number) {
 		if (index >= sections.length - 1) return;
-		const current = sections[index];
-		const next = sections[index + 1];
-		const temp = current.sort_order;
-		await updateSection(current.id, { sort_order: next.sort_order });
-		await updateSection(next.id, { sort_order: temp });
+		// Insert a key between the item below and the item two-below (if any).
+		const keyBelow = sections[index + 1].sort_order;
+		const keyBelowBelow = index + 2 < sections.length ? sections[index + 2].sort_order : null;
+		const newKey = sortKeyBetween(keyBelow, keyBelowBelow);
+		await updateSection(sections[index].id, { sort_order: newKey });
 		await load();
 	}
 

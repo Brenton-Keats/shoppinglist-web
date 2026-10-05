@@ -9,6 +9,7 @@
 	} from '$lib/db/operations';
 	import { syncStateStore } from '$lib/sync/state.svelte';
 	import { reorderStores } from '$lib/drag-drop/ordering';
+	import { compareSortKeys, sortKeyAfter, sortKeyBetween } from '$lib/utils/ordering';
 	import { findDropTarget } from '$lib/drag-drop/detection';
 	import type { DragStartEvent } from '$lib/drag-drop/detection';
 	import DragHandle from '$lib/components/DragHandle.svelte';
@@ -24,7 +25,9 @@
 	let editInputRef = $state<HTMLInputElement | null>(null);
 
 	async function load() {
-		stores = (await getActiveEntities<Store>('stores')).sort((a, b) => a.sort_order - b.sort_order);
+		stores = (await getActiveEntities<Store>('stores')).sort((a, b) =>
+			compareSortKeys(a.sort_order, b.sort_order)
+		);
 		loading = false;
 	}
 
@@ -50,10 +53,10 @@
 		const name = newName.trim();
 		if (!name) return;
 
-		const maxOrder = stores.length > 0 ? Math.max(...stores.map((s) => s.sort_order)) : 0;
+		const lastKey = stores.length > 0 ? stores[stores.length - 1].sort_order : null;
 		await createStore({
 			name,
-			sort_order: maxOrder + 1,
+			sort_order: sortKeyAfter(lastKey),
 			active: true
 		});
 		newName = '';
@@ -101,21 +104,19 @@
 
 	async function moveUp(index: number) {
 		if (index <= 0) return;
-		const current = stores[index];
-		const prev = stores[index - 1];
-		const temp = current.sort_order;
-		await updateStore(current.id, { sort_order: prev.sort_order });
-		await updateStore(prev.id, { sort_order: temp });
+		const keyAboveAbove = index >= 2 ? stores[index - 2].sort_order : null;
+		const keyAbove = stores[index - 1].sort_order;
+		const newKey = sortKeyBetween(keyAboveAbove, keyAbove);
+		await updateStore(stores[index].id, { sort_order: newKey });
 		await load();
 	}
 
 	async function moveDown(index: number) {
 		if (index >= stores.length - 1) return;
-		const current = stores[index];
-		const next = stores[index + 1];
-		const temp = current.sort_order;
-		await updateStore(current.id, { sort_order: next.sort_order });
-		await updateStore(next.id, { sort_order: temp });
+		const keyBelow = stores[index + 1].sort_order;
+		const keyBelowBelow = index + 2 < stores.length ? stores[index + 2].sort_order : null;
+		const newKey = sortKeyBetween(keyBelow, keyBelowBelow);
+		await updateStore(stores[index].id, { sort_order: newKey });
 		await load();
 	}
 
