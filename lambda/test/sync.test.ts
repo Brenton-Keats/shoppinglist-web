@@ -164,6 +164,52 @@ describe('sync flow', () => {
     expect(archived === null || !Number.isNaN(new Date(archived as string).getTime())).toBe(true);
   });
 
+  it('forces a full resync when baseRevision predates the retained change log', async () => {
+    const store = new InMemoryStore();
+    // Build up a few revisions.
+    await handlePostSync(store, { deviceId: 'dev-a', baseRevision: 0, changes: [createChange({ entityId: 'list-1' })] });
+    await handlePostSync(store, { deviceId: 'dev-a', baseRevision: 1, changes: [createChange({ entityId: 'list-2' })] });
+    await handlePostSync(store, { deviceId: 'dev-a', baseRevision: 2, changes: [createChange({ entityId: 'list-3' })] });
+
+    // Simulate change-log TTL expiring revisions 1 and 2; oldest retained is 3.
+    store.expireChangesUpTo(2);
+
+    // A device stuck at baseRevision 1 can no longer be brought up to date from
+    // the log (revision 2 is gone) and must full-fetch.
+    const res = await handlePostSync(store, { deviceId: 'dev-b', baseRevision: 1, changes: [] });
+    expect(res.fullResyncRequired).toBe(true);
+    expect(res.changes).toEqual([]);
+    expect(res.serverRevision).toBe(3);
+  });
+
+  it('does not force a full resync when the retained log still covers the client', async () => {
+    const store = new InMemoryStore();
+    await handlePostSync(store, { deviceId: 'dev-a', baseRevision: 0, changes: [createChange({ entityId: 'list-1' })] });
+    await handlePostSync(store, { deviceId: 'dev-a', baseRevision: 1, changes: [createChange({ entityId: 'list-2' })] });
+    await handlePostSync(store, { deviceId: 'dev-a', baseRevision: 2, changes: [createChange({ entityId: 'list-3' })] });
+
+    // Expire only revision 1; oldest retained is 2. A client at baseRevision 1
+    // needs changes from revision 2 onward, which are all still present — no
+    // resync, just the incremental set.
+    store.expireChangesUpTo(1);
+
+    const res = await handlePostSync(store, { deviceId: 'dev-b', baseRevision: 1, changes: [] });
+    expect(res.fullResyncRequired).toBeUndefined();
+    expect(res.changes.map((c) => c.entity_id)).toEqual(['list-2', 'list-3']);
+  });
+
+  it('never forces a resync for a fresh client at baseRevision 0', async () => {
+    const store = new InMemoryStore();
+    await handlePostSync(store, { deviceId: 'dev-a', baseRevision: 0, changes: [createChange({ entityId: 'list-1' })] });
+    await handlePostSync(store, { deviceId: 'dev-a', baseRevision: 1, changes: [createChange({ entityId: 'list-2' })] });
+    // Even with the early log expired, a baseRevision-0 client is handled by the
+    // normal path (it gets whatever the log still holds); it is never forced.
+    store.expireChangesUpTo(1);
+
+    const res = await handlePostSync(store, { deviceId: 'dev-c', baseRevision: 0, changes: [] });
+    expect(res.fullResyncRequired).toBeUndefined();
+  });
+
   it('rejects a stale update but never writes a junk date', async () => {
     const store = new InMemoryStore();
     await handlePostSync(store, {

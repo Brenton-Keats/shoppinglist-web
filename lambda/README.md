@@ -17,13 +17,40 @@ One table, uniform String `pk`/`sk`:
 | Item            | pk               | sk                       | Notes |
 |-----------------|------------------|--------------------------|-------|
 | Entity          | `ENTITY#<Type>`  | `<id>`                   | One row per List/Section/Store/Product/ListItem, incl. soft-deleted tombstones |
-| Change log      | `CHANGELOG`      | zero-padded revision     | `Query pk=CHANGELOG AND sk > <base>` returns changes since a revision |
-| Revision counter| `META`           | `serverRevision`         | `value` (Number); atomic `ADD` allocates revisions |
+| Change log      | `CHANGELOG`      | zero-padded revision     | `Query pk=CHANGELOG AND sk > <base>` returns changes since a revision. Carries a `ttl` attribute (30-day retention) — see below |
+| Revision counter| `META`           | `serverRevision`         | `value` (Number); atomic `ADD` allocates revisions. Never expires |
 | Setting         | `SETTING`        | `<key>`                  | `value` (String) |
 
 Revisions are zero-padded to a fixed width so lexicographic SK ordering equals
 numeric ordering. The counter is the single source of truth for both revision
 allocation and the current server revision, and is updated atomically.
+
+### Change-log TTL (30-day retention) and the full-resync guard
+
+The change log grows by one row per accepted mutation and would otherwise be
+unbounded. To bound it, every change-log item is written with a numeric `ttl`
+attribute — an **epoch in SECONDS** (DynamoDB TTL requires seconds, not millis)
+set to `floor(now/1000) + CHANGELOG_TTL_SECONDS`, where `CHANGELOG_TTL_SECONDS`
+is 30 days (`2592000`, defined in `src/config.ts`). DynamoDB TTL deletes each
+row shortly after its `ttl` passes. TTL is enabled on the table in
+`terraform/main.tf` (`ttl { attribute_name = "ttl", enabled = true }`).
+
+The `ttl` attribute is applied **only to change-log rows** (`pk=CHANGELOG`).
+Entity rows, the `META`/`serverRevision` counter, and settings carry no `ttl`
+and are never expired — the revision counter in particular must stay monotonic
+forever.
+
+Because old change-log rows expire, a device offline longer than the retention
+window can hold a `baseRevision` that predates the oldest change-log revision
+still retained. A naive `getChangesSince(baseRevision)` would silently return an
+incomplete set and corrupt that client. The sync handler guards against this:
+it reads the oldest retained revision (`getOldestChangeRevision()`), and when a
+client's non-zero `baseRevision` is older than what the log still covers
+(`oldestRetained > baseRevision + 1`), it responds with `fullResyncRequired:
+true` and empty `changes`. The client treats that as the signal to discard the
+partial set and perform a full `GET /api/data` re-fetch (cold-start reseed),
+resetting its local revision from the dump. A fresh client at `baseRevision 0`
+is never forced to resync — it already cold-starts via the full dump.
 
 ## Curating the data directly (AWS console / CLI)
 

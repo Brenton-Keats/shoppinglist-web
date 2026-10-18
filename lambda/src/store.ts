@@ -35,4 +35,12 @@ export interface Store {
 
   /** Change-log records with revision strictly greater than `revision`. */
   getChangesSince(revision: number): Promise<ChangeRecord[]>;
+
+  /**
+   * Smallest revision still retained in the change log, or null if the log is
+   * empty. Used by the sync handler to detect a client whose `baseRevision`
+   * predates the retained window (TTL-expired) and must therefore do a full
+   * re-fetch instead of a partial incremental sync.
+   */
+  getOldestChangeRevision(): Promise<number | null>;
 }

@@ -6,7 +6,7 @@ import {
   QueryCommand,
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
-import { KEYS, padRevision } from './config';
+import { changelogTtl, KEYS, padRevision } from './config';
 import type { Store } from './store';
 import type { ChangeRecord, EntityRecord, SettingRecord } from './types';
 
@@ -120,6 +120,10 @@ export class DynamoStore implements Store {
   }
 
   async putChanges(records: ChangeRecord[]): Promise<void> {
+    // `ttl` (epoch SECONDS) is applied ONLY to change-log items so DynamoDB TTL
+    // auto-expires old log rows after the retention window. Entity rows, the
+    // META/serverRevision counter, and settings are never given a ttl.
+    const ttl = changelogTtl();
     for (const group of chunk(records, 25)) {
       await this.client.send(
         new BatchWriteCommand({
@@ -129,6 +133,7 @@ export class DynamoStore implements Store {
                 Item: {
                   pk: KEYS.CHANGELOG_PK,
                   sk: padRevision(rec.revision),
+                  ttl,
                   ...rec,
                 },
               },
@@ -137,6 +142,23 @@ export class DynamoStore implements Store {
         }),
       );
     }
+  }
+
+  async getOldestChangeRevision(): Promise<number | null> {
+    const res = await this.client.send(
+      new QueryCommand({
+        TableName: this.tableName,
+        KeyConditionExpression: 'pk = :pk',
+        ExpressionAttributeValues: { ':pk': KEYS.CHANGELOG_PK },
+        ScanIndexForward: true,
+        Limit: 1,
+      }),
+    );
+    const item = res.Items?.[0];
+    if (!item) return null;
+    const revision = (item as Record<string, unknown>).revision;
+    const value = typeof revision === 'number' ? revision : Number(revision);
+    return Number.isFinite(value) ? value : null;
   }
 
   async getChangesSince(revision: number): Promise<ChangeRecord[]> {

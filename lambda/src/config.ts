@@ -103,3 +103,18 @@ export const REVISION_PAD_WIDTH = 20;
 export function padRevision(revision: number): string {
   return String(revision).padStart(REVISION_PAD_WIDTH, '0');
 }
+
+/**
+ * Retention window for change-log items, in seconds. DynamoDB TTL deletes an
+ * item once its `ttl` attribute (epoch SECONDS) is in the past. 30 days keeps
+ * incremental sync working for recently-active clients while bounding the
+ * unbounded change-log growth; clients offline longer than this cold-start via
+ * the full data dump (guarded by the oldest-retained-revision check in sync).
+ * 30 days = 30 * 24 * 60 * 60 = 2592000 seconds.
+ */
+export const CHANGELOG_TTL_SECONDS = 30 * 24 * 60 * 60;
+
+/** Epoch SECONDS at which a change-log item written now should expire. */
+export function changelogTtl(nowMs: number = Date.now()): number {
+  return Math.floor(nowMs / 1000) + CHANGELOG_TTL_SECONDS;
+}

@@ -59,4 +59,18 @@ export class InMemoryStore implements Store {
       .sort((a, b) => a.revision - b.revision)
       .map((c) => ({ ...c }));
   }
+
+  async getOldestChangeRevision(): Promise<number | null> {
+    if (this.changes.length === 0) return null;
+    return this.changes.reduce((min, c) => (c.revision < min ? c.revision : min), Infinity);
+  }
+
+  /**
+   * Test helper: simulate change-log TTL expiry by dropping all retained
+   * change-log rows with revision <= `revision`. Mirrors what DynamoDB TTL does
+   * in production (entity rows and the revision counter are unaffected).
+   */
+  expireChangesUpTo(revision: number) {
+    this.changes = this.changes.filter((c) => c.revision > revision);
+  }
 }

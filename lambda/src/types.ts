@@ -72,6 +72,14 @@ export interface SyncResponse {
   acceptedChanges: string[];
   changes: ChangeRecord[];
   conflicts?: ConflictReport[];
+  /**
+   * Set when the client's `baseRevision` is older than the oldest change-log
+   * revision the server still retains (change-log TTL expired the intervening
+   * rows). The returned `changes` would be incomplete, so the client MUST
+   * discard them and do a full re-fetch via GET /api/data instead of applying a
+   * partial incremental sync.
+   */
+  fullResyncRequired?: boolean;
 }
 
 export interface SyncRequest {

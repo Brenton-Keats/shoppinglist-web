@@ -33,12 +33,16 @@ resource "aws_dynamodb_table" "data" {
     enabled = false
   }
 
-  # Future option: auto-expire old change-log items by setting a `ttl` epoch
-  # attribute on them and enabling TTL here.
-  # ttl {
-  #   attribute_name = "ttl"
-  #   enabled        = false
-  # }
+  # Auto-expire old change-log items. The Lambda writes a numeric `ttl` (epoch
+  # SECONDS) only on change-log rows (pk=CHANGELOG) with a 30-day retention
+  # window; DynamoDB deletes them once the ttl passes. Entity rows, the
+  # META/serverRevision counter, and settings carry no ttl and are never
+  # expired. Clients offline longer than the window cold-start via the full
+  # data dump (the sync handler's full-resync guard enforces this).
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
 }
 
 # ─── Lambda package ──────────────────────────────────────────────────────────

@@ -157,6 +157,22 @@ export async function performSync(): Promise<boolean> {
 			return false;
 		}
 
+		// Server-side sync-correctness guard: our baseRevision predates the oldest
+		// change-log revision still retained (the intervening rows aged out under
+		// the change-log TTL). The returned incremental changes are incomplete, so
+		// discard them and do a full re-fetch. fetchInitialData() clears local
+		// entity state and reseeds lastRevision from the server's full dump,
+		// exactly like a cold start, so no stale or duplicate entities survive.
+		if (response.fullResyncRequired) {
+			// Any changes we submitted were accepted and applied server-side (they
+			// are reflected in the full dump). Mark them synced first so the full
+			// re-fetch doesn't leave them stuck as pending and resubmit them later.
+			if (response.acceptedChanges.length > 0) {
+				await markChangesSynced(response.acceptedChanges, response.serverRevision);
+			}
+			return await fetchInitialData();
+		}
+
 		let dataChanged = false;
 
 		// Apply any server-side changes we haven't seen yet

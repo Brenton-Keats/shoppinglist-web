@@ -112,6 +112,36 @@ export async function handlePostSync(store: Store, body: SyncRequest): Promise<S
 
   const finalRevision = await store.getServerRevision();
 
+  // Sync-correctness guard: with change-log TTL, rows older than the retention
+  // window are deleted. A client whose baseRevision predates the oldest
+  // retained revision cannot be brought up to date from the log alone — the
+  // intervening changes are gone. getChangesSince would silently return an
+  // incomplete set and corrupt that client's state. Detect the gap and tell
+  // the client to full-fetch instead.
+  //
+  // baseRevision 0 is a genuinely fresh client (handled by the normal path /
+  // cold start) and is never forced to resync. getChangesSince returns rows
+  // with revision strictly greater than baseRevision, so the client needs the
+  // log to retain everything from baseRevision + 1 onward. If the oldest
+  // retained revision is greater than baseRevision + 1, revisions in between
+  // have expired and a full re-fetch is required.
+  if (baseRevision > 0) {
+    const oldestRetained = await store.getOldestChangeRevision();
+    if (oldestRetained !== null && oldestRetained > baseRevision + 1) {
+      const response: SyncResponse = {
+        success: true,
+        serverRevision: finalRevision,
+        acceptedChanges: acceptedIds,
+        changes: [],
+        fullResyncRequired: true,
+      };
+      if (conflicts.length > 0) {
+        response.conflicts = conflicts;
+      }
+      return response;
+    }
+  }
+
   let serverChanges: ChangeRecord[] = [];
   if (baseRevision < finalRevision) {
     serverChanges = await store.getChangesSince(baseRevision);

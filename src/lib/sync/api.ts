@@ -49,6 +49,13 @@ export interface SubmitChangesResponse {
 		data: Record<string, unknown>;
 		timestamp: string;
 	}>;
+	/**
+	 * Set by the server when this client's baseRevision is older than the oldest
+	 * retained change-log revision (change-log TTL expired the intervening rows).
+	 * The incremental `changes` are incomplete and MUST be discarded in favour of
+	 * a full re-fetch via GET /api/data.
+	 */
+	fullResyncRequired?: boolean;
 }
 
 export interface ApiError {
