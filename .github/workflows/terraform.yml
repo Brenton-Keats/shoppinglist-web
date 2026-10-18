@@ -77,8 +77,6 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     environment: terraform-plan
-    outputs:
-      has_changes: ${{ steps.plan.outputs.has_changes }}
     defaults:
       run:
         working-directory: terraform
@@ -117,6 +115,8 @@ jobs:
       - run: terraform fmt -check -recursive
       - run: terraform validate
 
+      # -detailed-exitcode is kept only for an informative log line; apply runs
+      # on every push to main regardless, so no output gates the apply job.
       - name: Terraform plan
         id: plan
         run: |
@@ -125,8 +125,8 @@ jobs:
           code=$?
           set -e
           case $code in
-            0) echo "No changes. Infrastructure is up to date."; echo "has_changes=false" >> "$GITHUB_OUTPUT" ;;
-            2) echo "Changes detected."; echo "has_changes=true" >> "$GITHUB_OUTPUT" ;;
+            0) echo "No changes. Infrastructure is up to date." ;;
+            2) echo "Changes detected." ;;
             *) echo "terraform plan failed with exit code $code"; exit "$code" ;;
           esac
 
@@ -137,26 +137,12 @@ jobs:
           path: terraform/tfplan
           retention-days: 1
 
-      # When there are no changes, apply is skipped, so publish the current
-      # outputs from here — state is unchanged, so these are authoritative.
-      # (When there ARE changes, apply publishes the post-apply outputs instead.)
-      - name: Export Terraform outputs
-        if: steps.plan.outputs.has_changes == 'false'
-        run: terraform output -json > tf-outputs.json
-
-      - name: Upload Terraform outputs artifact
-        if: steps.plan.outputs.has_changes == 'false'
-        uses: actions/upload-artifact@v4
-        with:
-          name: tf-outputs
-          path: terraform/tf-outputs.json
-          retention-days: 7
-
   apply:
     needs: plan
-    if: >-
-      github.event_name == 'push' && github.ref == 'refs/heads/main'
-      && needs.plan.outputs.has_changes == 'true'
+    # Runs on every push to main (not PRs). Applying an unchanged saved plan is
+    # a safe no-op, so apply always traverses the protected terraform-apply gate
+    # and is the sole producer of the tf-outputs artifact the deploy consumes.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: terraform-apply
     defaults:
@@ -190,8 +176,8 @@ jobs:
       - run: terraform init
       - run: terraform apply -input=false tfplan
 
-      # Publish the post-apply outputs (authoritative after a change). On
-      # no-change runs apply is skipped and the plan job publishes instead.
+      # Sole producer of tf-outputs: apply runs on every push to main, so these
+      # post-apply outputs are always published for the deploy workflow.
       - name: Export Terraform outputs
         run: terraform output -json > tf-outputs.json
 
