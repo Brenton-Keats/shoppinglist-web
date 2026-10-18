@@ -130,11 +130,18 @@ jobs:
             *) echo "terraform plan failed with exit code $code"; exit "$code" ;;
           esac
 
+      # Carry BOTH the saved plan and the Lambda zip that archive_file generated
+      # during plan (terraform/.build/lambda.zip). apply runs on a separate
+      # runner and `terraform apply tfplan` re-reads that exact file path, so the
+      # zip the plan referenced must travel with the plan — otherwise apply fails
+      # with "reading ZIP file (./.build/lambda.zip): no such file or directory".
       - name: Upload Terraform plan artifact
         uses: actions/upload-artifact@v4
         with:
           name: tfplan
-          path: terraform/tfplan
+          path: |
+            terraform/tfplan
+            terraform/.build/lambda.zip
           retention-days: 1
 
   apply:
