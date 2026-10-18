@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Search, X, ChevronUp, ChevronDown, ChevronRight, Plus, Archive, Pencil } from '@lucide/svelte';
+	import { Search, X, ChevronUp, ChevronDown, ChevronRight, Plus, Archive, Pencil, Check } from '@lucide/svelte';
 	import { fly, fade } from 'svelte/transition';
 	import { listStore } from '$lib/stores/list.svelte';
 	import { uiStore } from '$lib/stores/ui.svelte';
@@ -18,6 +18,8 @@
 	// List management
 	let showListSheet = $state(false);
 	let allLists = $state<List[]>([]);
+	let editingListId = $state<string | null>(null);
+	let editListName = $state('');
 
 	let allProducts = $state<Product[]>([]);
 	let allSections = $state<Section[]>([]);
@@ -128,12 +130,48 @@
 	function closeListSheet() {
 		showListSheet = false;
 		uiStore.dialogOpen = false;
+		cancelEditList();
 	}
 
 	async function switchToList(list: List) {
 		listStore.activeList = list;
 		await listStore.loadListData(list.id);
 		closeListSheet();
+	}
+
+	function startEditList(list: List) {
+		editingListId = list.id;
+		editListName = list.name;
+	}
+
+	function cancelEditList() {
+		editingListId = null;
+		editListName = '';
+	}
+
+	async function handleListRenameSave() {
+		const name = editListName.trim();
+		if (!name || !editingListId) {
+			if (!name) toastStore.error('Name cannot be empty.');
+			return;
+		}
+		await updateList(editingListId, { name });
+		// Keep the active-list display reactive if the renamed list is active.
+		if (editingListId === listStore.activeList?.id) {
+			listStore.activeList = { ...listStore.activeList, name };
+		}
+		editingListId = null;
+		editListName = '';
+		await loadLists();
+	}
+
+	function handleListRenameKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			handleListRenameSave();
+		} else if (e.key === 'Escape') {
+			cancelEditList();
+		}
 	}
 
 	async function createNewList() {
@@ -254,6 +292,7 @@
 	// Long-press edit
 	let editingProduct = $state<Product | null>(null);
 	let allStores = $state<Store[]>([]);
+	let editName = $state('');
 	let editSectionId = $state<string>('');
 	let editStoreId = $state<string>('');
 	let addingNewSection = $state(false);
@@ -264,6 +303,7 @@
 	async function openEditSheet(product: Product) {
 		allStores = await getActiveEntities<Store>('stores');
 		editingProduct = product;
+		editName = product.name;
 		editSectionId = product.default_section_id || '';
 		editStoreId = product.default_store_id || '';
 		addingNewSection = false;
@@ -331,6 +371,13 @@
 
 	async function saveProductEdit() {
 		if (!editingProduct) return;
+
+		const name = editName.trim();
+		if (!name) {
+			toastStore.error('Name cannot be empty.');
+			return;
+		}
+
 		const newSectionId = editSectionId || null;
 		const newStoreId = editStoreId || null;
 
@@ -346,8 +393,10 @@
 			newSortOrder = sortKeyAfter(lastKey);
 		}
 
-		// Update the product defaults
+		// Update the product name + defaults. name_snapshot on existing list items
+		// is intentionally left frozen — renaming a product does not rewrite history.
 		await updateProduct(editingProduct.id, {
+			name,
 			default_section_id: newSectionId,
 			default_store_id: newStoreId,
 			sort_order: newSortOrder
@@ -604,27 +653,64 @@
 			<div class="overflow-y-auto" style="max-height: 40vh;">
 				{#each allLists as list (list.id)}
 					{@const isCurrent = list.id === listStore.activeList?.id}
-					<button
-						onclick={() => switchToList(list)}
-						class="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left {isCurrent ? 'bg-[var(--color-primary)]/10' : 'active:bg-[var(--color-surface)]'}"
-					>
-						<div class="flex-1 min-w-0">
-							<div class="flex items-center gap-2">
-								<span class="truncate text-sm font-medium {isCurrent ? 'text-[var(--color-accent)]' : 'text-[var(--color-text)]'}">
-									{list.name}
-								</span>
-								{#if list.status === 'ARCHIVED'}
-									<span class="rounded bg-[var(--color-border)] px-1.5 py-0.5 text-xs text-[var(--color-text-secondary)]">archived</span>
-								{/if}
-							</div>
-							<span class="text-xs text-[var(--color-text-secondary)]">
-								{new Date(list.created_at).toLocaleDateString()}
-							</span>
+					{#if editingListId === list.id}
+						<div class="flex w-full items-center gap-2 rounded-lg px-3 py-2">
+							<!-- svelte-ignore a11y_autofocus -->
+							<input
+								bind:value={editListName}
+								onkeydown={handleListRenameKeydown}
+								autofocus
+								aria-label="List name"
+								class="flex-1 rounded-md bg-[var(--color-bg)] px-2 py-1.5 text-sm text-[var(--color-text)] outline-none ring-1 ring-[var(--color-border)] focus:ring-[var(--color-accent)]"
+							/>
+							<button
+								onclick={handleListRenameSave}
+								class="rounded-md p-1.5 text-[var(--color-success)] active:bg-[var(--color-surface)]"
+								aria-label="Save"
+							>
+								<Check size={16} />
+							</button>
+							<button
+								onclick={cancelEditList}
+								class="rounded-md p-1.5 text-[var(--color-text-secondary)] active:bg-[var(--color-surface)]"
+								aria-label="Cancel"
+							>
+								<X size={16} />
+							</button>
 						</div>
-						{#if isCurrent}
-							<span class="text-xs font-medium text-[var(--color-accent)]">Current</span>
-						{/if}
-					</button>
+					{:else}
+						<div class="flex w-full items-center gap-1 rounded-lg {isCurrent ? 'bg-[var(--color-primary)]/10' : 'active:bg-[var(--color-surface)]'}">
+							<button
+								onclick={() => switchToList(list)}
+								class="flex flex-1 min-w-0 items-center gap-3 px-3 py-3 text-left"
+							>
+								<div class="flex-1 min-w-0">
+									<div class="flex items-center gap-2">
+										<span class="truncate text-sm font-medium {isCurrent ? 'text-[var(--color-accent)]' : 'text-[var(--color-text)]'}">
+											{list.name}
+										</span>
+										{#if list.status === 'ARCHIVED'}
+											<span class="rounded bg-[var(--color-border)] px-1.5 py-0.5 text-xs text-[var(--color-text-secondary)]">archived</span>
+										{/if}
+									</div>
+									<span class="text-xs text-[var(--color-text-secondary)]">
+										{new Date(list.created_at).toLocaleDateString()}
+									</span>
+								</div>
+								{#if isCurrent}
+									<span class="text-xs font-medium text-[var(--color-accent)]">Current</span>
+								{/if}
+							</button>
+							<button
+								onclick={() => startEditList(list)}
+								class="flex shrink-0 items-center justify-center rounded-full p-2 text-[var(--color-text-secondary)] active:bg-[var(--color-border)]"
+								style="min-height: 36px; min-width: 36px;"
+								aria-label={`Rename ${list.name}`}
+							>
+								<Pencil size={14} />
+							</button>
+						</div>
+					{/if}
 				{/each}
 			</div>
 
@@ -697,6 +783,18 @@
 			{/if}
 
 			<div class="flex flex-col gap-4">
+				<div>
+					<label for="edit-name" class="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">Name</label>
+					<input
+						id="edit-name"
+						type="text"
+						bind:value={editName}
+						placeholder="Product name"
+						class="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-3 text-base text-[var(--color-text)] outline-none"
+						onkeydown={(e) => { if (e.key === 'Enter') saveProductEdit(); }}
+					/>
+				</div>
+
 				<div>
 					<label for="edit-section" class="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">Section</label>
 					{#if addingNewSection}
