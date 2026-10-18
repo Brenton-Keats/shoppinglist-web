@@ -2,14 +2,15 @@
 	import { Plus, ArrowUp, ArrowDown, Pencil, Trash2, Check, X } from '@lucide/svelte';
 	import type { Section } from '$lib/types';
 	import {
-		createSection,
+		createSectionAtEnd,
 		updateSection,
 		softDeleteSection,
 		getActiveEntities
 	} from '$lib/db/operations';
 	import { syncStateStore } from '$lib/sync/state.svelte';
 	import { reorderSections } from '$lib/drag-drop/ordering';
-	import { compareSortKeys, sortKeyAfter, sortKeyBetween } from '$lib/utils/ordering';
+	import { compareSortKeys } from '$lib/utils/ordering';
+	import { toastStore } from '$lib/stores/toast.svelte';
 	import { findDropTarget } from '$lib/drag-drop/detection';
 	import type { DragStartEvent } from '$lib/drag-drop/detection';
 	import DragHandle from '$lib/components/DragHandle.svelte';
@@ -52,11 +53,9 @@
 		const name = newName.trim();
 		if (!name) return;
 
-		const lastKey = sections.length > 0 ? sections[sections.length - 1].sort_order : null;
-		await createSection({
+		await createSectionAtEnd({
 			list_id: null,
 			name,
-			sort_order: sortKeyAfter(lastKey),
 			active: true
 		});
 		newName = '';
@@ -104,22 +103,24 @@
 
 	async function moveUp(index: number) {
 		if (index <= 0) return;
-		// Insert a key between the item two-above (if any) and the item above.
-		const keyAboveAbove = index >= 2 ? sections[index - 2].sort_order : null;
-		const keyAbove = sections[index - 1].sort_order;
-		const newKey = sortKeyBetween(keyAboveAbove, keyAbove);
-		await updateSection(sections[index].id, { sort_order: newKey });
-		await load();
+		try {
+			await reorderSections(sections[index].id, index - 1, null);
+			await load();
+		} catch (err) {
+			console.error('Failed to move section up:', err);
+			toastStore.error('Could not reorder section. Please try again.');
+		}
 	}
 
 	async function moveDown(index: number) {
 		if (index >= sections.length - 1) return;
-		// Insert a key between the item below and the item two-below (if any).
-		const keyBelow = sections[index + 1].sort_order;
-		const keyBelowBelow = index + 2 < sections.length ? sections[index + 2].sort_order : null;
-		const newKey = sortKeyBetween(keyBelow, keyBelowBelow);
-		await updateSection(sections[index].id, { sort_order: newKey });
-		await load();
+		try {
+			await reorderSections(sections[index].id, index + 1, null);
+			await load();
+		} catch (err) {
+			console.error('Failed to move section down:', err);
+			toastStore.error('Could not reorder section. Please try again.');
+		}
 	}
 
 	function handleDragStart(_e: DragStartEvent) {
@@ -139,8 +140,13 @@
 		const targetIndex = sections.findIndex((s) => s.id === target.id);
 		if (targetIndex === -1) return;
 
-		await reorderSections(sectionId, targetIndex, null);
-		await load();
+		try {
+			await reorderSections(sectionId, targetIndex, null);
+			await load();
+		} catch (err) {
+			console.error('Failed to reorder section:', err);
+			toastStore.error('Could not reorder section. Please try again.');
+		}
 	}
 
 	function handleKeydown(e: KeyboardEvent, action: 'add' | 'edit') {

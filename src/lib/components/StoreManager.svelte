@@ -2,14 +2,15 @@
 	import { Plus, ArrowUp, ArrowDown, Pencil, Trash2, Check, X } from '@lucide/svelte';
 	import type { Store } from '$lib/types';
 	import {
-		createStore,
+		createStoreAtEnd,
 		updateStore,
 		softDeleteStore,
 		getActiveEntities
 	} from '$lib/db/operations';
 	import { syncStateStore } from '$lib/sync/state.svelte';
 	import { reorderStores } from '$lib/drag-drop/ordering';
-	import { compareSortKeys, sortKeyAfter, sortKeyBetween } from '$lib/utils/ordering';
+	import { compareSortKeys } from '$lib/utils/ordering';
+	import { toastStore } from '$lib/stores/toast.svelte';
 	import { findDropTarget } from '$lib/drag-drop/detection';
 	import type { DragStartEvent } from '$lib/drag-drop/detection';
 	import DragHandle from '$lib/components/DragHandle.svelte';
@@ -53,10 +54,8 @@
 		const name = newName.trim();
 		if (!name) return;
 
-		const lastKey = stores.length > 0 ? stores[stores.length - 1].sort_order : null;
-		await createStore({
+		await createStoreAtEnd({
 			name,
-			sort_order: sortKeyAfter(lastKey),
 			active: true
 		});
 		newName = '';
@@ -104,20 +103,24 @@
 
 	async function moveUp(index: number) {
 		if (index <= 0) return;
-		const keyAboveAbove = index >= 2 ? stores[index - 2].sort_order : null;
-		const keyAbove = stores[index - 1].sort_order;
-		const newKey = sortKeyBetween(keyAboveAbove, keyAbove);
-		await updateStore(stores[index].id, { sort_order: newKey });
-		await load();
+		try {
+			await reorderStores(stores[index].id, index - 1);
+			await load();
+		} catch (err) {
+			console.error('Failed to move store up:', err);
+			toastStore.error('Could not reorder store. Please try again.');
+		}
 	}
 
 	async function moveDown(index: number) {
 		if (index >= stores.length - 1) return;
-		const keyBelow = stores[index + 1].sort_order;
-		const keyBelowBelow = index + 2 < stores.length ? stores[index + 2].sort_order : null;
-		const newKey = sortKeyBetween(keyBelow, keyBelowBelow);
-		await updateStore(stores[index].id, { sort_order: newKey });
-		await load();
+		try {
+			await reorderStores(stores[index].id, index + 1);
+			await load();
+		} catch (err) {
+			console.error('Failed to move store down:', err);
+			toastStore.error('Could not reorder store. Please try again.');
+		}
 	}
 
 	function handleDragStart(_e: DragStartEvent) {
@@ -137,8 +140,13 @@
 		const targetIndex = stores.findIndex((s) => s.id === target.id);
 		if (targetIndex === -1) return;
 
-		await reorderStores(storeId, targetIndex);
-		await load();
+		try {
+			await reorderStores(storeId, targetIndex);
+			await load();
+		} catch (err) {
+			console.error('Failed to reorder store:', err);
+			toastStore.error('Could not reorder store. Please try again.');
+		}
 	}
 
 	function handleKeydown(e: KeyboardEvent, action: 'add' | 'edit') {

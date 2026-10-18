@@ -7,8 +7,9 @@
 	import { preferencesStore } from '$lib/stores/preferences.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import { db } from '$lib/db/database';
-	import { getActiveEntities, createList, updateProduct, updateList, createSection, createStore } from '$lib/db/operations';
-	import { compareSortKeys, sortKeyBetween, sortKeyAfter } from '$lib/utils/ordering';
+	import { getActiveEntities, createList, updateProduct, updateList, createSectionAtEnd, createStoreAtEnd, updateListItem } from '$lib/db/operations';
+	import { compareSortKeys, sortKeyAfter, planReorder } from '$lib/utils/ordering';
+	import { toastStore } from '$lib/stores/toast.svelte';
 	import type { Product, Section, Store, List } from '$lib/types';
 
 	uiStore.setHeaderTitle('');
@@ -222,20 +223,9 @@
 		const name = searchQuery.trim();
 		if (!name) return;
 
-		// Generate a sort key after the last product (appends to end)
-		const lastKey = allProducts.length > 0
-			? allProducts.sort((a, b) => compareSortKeys(a.sort_order, b.sort_order)).at(-1)?.sort_order
-			: null;
-		const newSortKey = sortKeyAfter(typeof lastKey === 'string' ? lastKey : null);
-
-		// Create product with sort key and add to list
+		// Create product + list item; both derive their sort_order atomically from
+		// the current group max (see createProductAtEnd / createListItemAtEnd).
 		await listStore.addNewProductAndItem(name, null, null);
-
-		// Update the product's sort_order (addNewProductAndItem uses items.length as sort_order)
-		const product = (await getActiveEntities<Product>('products')).find(p => p.name.toLowerCase() === name.toLowerCase());
-		if (product) {
-			await updateProduct(product.id, { sort_order: newSortKey });
-		}
 
 		searchQuery = '';
 		await loadProducts();
@@ -315,10 +305,9 @@
 	async function createNewSection() {
 		const name = newSectionName.trim();
 		if (!name) return;
-		const section = await createSection({
+		const section = await createSectionAtEnd({
 			list_id: null,
 			name,
-			sort_order: sortKeyAfter(allSections.length > 0 ? allSections[allSections.length - 1].sort_order : null),
 			active: true
 		});
 		allSections = [...allSections, section];
@@ -330,9 +319,8 @@
 	async function createNewStore() {
 		const name = newStoreName.trim();
 		if (!name) return;
-		const store = await createStore({
+		const store = await createStoreAtEnd({
 			name,
-			sort_order: sortKeyAfter(allStores.length > 0 ? allStores[allStores.length - 1].sort_order : null),
 			active: true
 		});
 		allStores = [...allStores, store];
@@ -381,57 +369,67 @@
 		closeEditSheet();
 	}
 
-	// Reordering within section
+	// Reordering within section. Siblings are sorted by sort_order with a stable
+	// tiebreak (name, then id) so that even a degenerate group where every key is
+	// identical yields a deterministic, repeatable visual order.
 	function getProductPositionInSection(): { index: number; total: number; siblings: Product[] } {
 		if (!editingProduct) return { index: -1, total: 0, siblings: [] };
 		const sectionId = editingProduct.default_section_id || null;
 		const siblings = allProducts
 			.filter(p => (p.default_section_id || null) === sectionId)
-			.sort((a, b) => compareSortKeys(a.sort_order, b.sort_order));
+			.sort((a, b) => {
+				const cmp = compareSortKeys(a.sort_order, b.sort_order);
+				if (cmp !== 0) return cmp;
+				const nameCmp = a.name.localeCompare(b.name);
+				if (nameCmp !== 0) return nameCmp;
+				return a.id.localeCompare(b.id);
+			});
 		const index = siblings.findIndex(p => p.id === editingProduct!.id);
 		return { index, total: siblings.length, siblings };
+	}
+
+	// Apply a product reorder within its section. Writes each product whose key
+	// changed (one row on the happy path, the whole group on a rebalance) and
+	// mirrors the key onto any matching ListItem on the active list. All writes
+	// run in a single Dexie transaction so a rebalance is atomic.
+	async function applyProductReorder(siblings: Product[], movingId: string, newIndex: number) {
+		const writes = planReorder(siblings, movingId, newIndex);
+		if (writes.length === 0) return;
+
+		await db.transaction('rw', db.products, db.listItems, db.changes, async () => {
+			for (const { id, sort_order } of writes) {
+				await updateProduct(id, { sort_order });
+				const listItem = listStore.items.find(i => i.product_id === id);
+				if (listItem) await updateListItem(listItem.id, { sort_order });
+			}
+		});
+
+		await loadProducts();
+		await listStore.loadActiveList();
 	}
 
 	async function moveProductUp() {
 		if (!editingProduct) return;
 		const { index, siblings } = getProductPositionInSection();
 		if (index <= 0) return;
-
-		// Generate a key between the item two above and the item above
-		const keyAboveAbove = index >= 2 ? siblings[index - 2].sort_order as any : null;
-		const keyAbove = siblings[index - 1].sort_order as any;
-		const newKey = sortKeyBetween(keyAboveAbove, keyAbove);
-
-		await updateProduct(editingProduct.id, { sort_order: newKey });
-
-		// Update ListItem sort_order too
-		const { updateListItem } = await import('$lib/db/operations');
-		const myListItem = listStore.items.find(i => i.product_id === editingProduct!.id);
-		if (myListItem) await updateListItem(myListItem.id, { sort_order: newKey });
-
-		await loadProducts();
-		await listStore.loadActiveList();
+		try {
+			await applyProductReorder(siblings, editingProduct.id, index - 1);
+		} catch (err) {
+			console.error('Failed to move product up:', err);
+			toastStore.error('Could not reorder item. Please try again.');
+		}
 	}
 
 	async function moveProductDown() {
 		if (!editingProduct) return;
 		const { index, siblings } = getProductPositionInSection();
 		if (index >= siblings.length - 1) return;
-
-		// Generate a key between the item below and the item two below
-		const keyBelow = siblings[index + 1].sort_order as any;
-		const keyBelowBelow = index + 2 < siblings.length ? siblings[index + 2].sort_order as any : null;
-		const newKey = sortKeyBetween(keyBelow, keyBelowBelow);
-
-		await updateProduct(editingProduct.id, { sort_order: newKey });
-
-		// Update ListItem sort_order too
-		const { updateListItem } = await import('$lib/db/operations');
-		const myListItem = listStore.items.find(i => i.product_id === editingProduct!.id);
-		if (myListItem) await updateListItem(myListItem.id, { sort_order: newKey });
-
-		await loadProducts();
-		await listStore.loadActiveList();
+		try {
+			await applyProductReorder(siblings, editingProduct.id, index + 1);
+		} catch (err) {
+			console.error('Failed to move product down:', err);
+			toastStore.error('Could not reorder item. Please try again.');
+		}
 	}
 </script>
 

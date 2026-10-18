@@ -1,6 +1,7 @@
 import { updateEntity, getActiveEntities } from '$lib/db/operations';
 import { recordChange } from '$lib/db/changes';
-import { compareSortKeys, sortKeyBetween } from '$lib/utils/ordering';
+import { db } from '$lib/db/database';
+import { compareSortKeys, planReorder } from '$lib/utils/ordering';
 import type { ChangeRecord, ListItem, Section, Store } from '$lib/types';
 
 type SortableTable = 'stores' | 'sections' | 'listItems';
@@ -13,9 +14,12 @@ const CHANGE_ENTITY: Record<SortableTable, ChangeRecord['entity_type']> = {
 
 /**
  * Move `movingId` so it sits at `newIndex` within `ordered` (a list already
- * sorted by sort_order), by generating a single fractional key roughly halfway
- * between the two neighbours at the destination. Only the moved row is written —
- * that is the point of fractional indexing: no renumbering of siblings.
+ * sorted by sort_order). In the happy path a single fractional key is written
+ * for the moved row. If the destination neighbours carry degenerate keys
+ * (equal/drifted) the whole group is rebalanced instead — see planReorder.
+ *
+ * All writes for a given move happen in one Dexie transaction so a rebalance is
+ * atomic, and each changed row is recorded for sync via recordChange.
  */
 async function moveWithinOrdered<T extends { id: string; sort_order: string }>(
 	table: SortableTable,
@@ -23,33 +27,15 @@ async function moveWithinOrdered<T extends { id: string; sort_order: string }>(
 	movingId: string,
 	newIndex: number
 ): Promise<void> {
-	const oldIndex = ordered.findIndex((e) => e.id === movingId);
-	if (oldIndex === -1) return;
+	const writes = planReorder(ordered, movingId, newIndex);
+	if (writes.length === 0) return;
 
-	// The sequence without the moving item, into which newIndex is interpreted.
-	const without = ordered.filter((e) => e.id !== movingId);
-	const clampedIndex = Math.max(0, Math.min(newIndex, without.length));
-
-	const before = clampedIndex > 0 ? without[clampedIndex - 1].sort_order : null;
-	const after = clampedIndex < without.length ? without[clampedIndex].sort_order : null;
-
-	// No-op if it would land exactly where it already is.
-	const current = ordered[oldIndex].sort_order;
-	if (before === current || after === current) {
-		// Already adjacent to its own position; still allow a true move elsewhere.
-		if (
-			(clampedIndex > 0 && without[clampedIndex - 1].id === movingId) ||
-			(clampedIndex < without.length && without[clampedIndex].id === movingId)
-		) {
-			return;
+	await db.transaction('rw', db.table(table), db.changes, async () => {
+		for (const { id, sort_order } of writes) {
+			await updateEntity(table, id, { sort_order } as Partial<T>);
+			await recordChange(CHANGE_ENTITY[table], id, 'update', { sort_order });
 		}
-	}
-
-	const newKey = sortKeyBetween(before, after);
-	if (newKey === current) return;
-
-	await updateEntity(table, movingId, { sort_order: newKey } as Partial<T>);
-	await recordChange(CHANGE_ENTITY[table], movingId, 'update', { sort_order: newKey });
+	});
 }
 
 export async function reorderStores(storeId: string, newIndex: number): Promise<void> {

@@ -5,7 +5,9 @@ import {
 	sortKeyBetween,
 	sortKeysBetween,
 	generateInitialKeys,
-	compareSortKeys
+	compareSortKeys,
+	keysAreDegenerate,
+	planReorder
 } from '$lib/utils/ordering';
 
 describe('fractional-indexing sort keys', () => {
@@ -100,6 +102,105 @@ describe('fractional-indexing sort keys', () => {
 			const sorted = [...inserted].sort(compareSortKeys);
 			expect(inserted).toEqual(sorted);
 			expect(new Set(inserted).size).toBe(inserted.length);
+		});
+	});
+
+	describe('keysAreDegenerate', () => {
+		it('flags two equal non-null keys (would throw a0 >= a0)', () => {
+			expect(keysAreDegenerate('a0', 'a0')).toBe(true);
+		});
+
+		it('flags non-increasing neighbours (before > after)', () => {
+			expect(keysAreDegenerate('a1', 'a0')).toBe(true);
+		});
+
+		it('does not flag a valid strictly-increasing pair', () => {
+			expect(keysAreDegenerate('a0', 'a1')).toBe(false);
+		});
+
+		it('does not flag empty/null neighbours (they collapse to null)', () => {
+			expect(keysAreDegenerate('', '')).toBe(false);
+			expect(keysAreDegenerate(null, null)).toBe(false);
+			expect(keysAreDegenerate('a0', null)).toBe(false);
+			expect(keysAreDegenerate(null, 'a0')).toBe(false);
+		});
+	});
+
+	describe('planReorder', () => {
+		it('moves a single row with one write in the happy path', () => {
+			const ordered = [
+				{ id: 'x', sort_order: 'a0' },
+				{ id: 'y', sort_order: 'a1' },
+				{ id: 'z', sort_order: 'a2' }
+			];
+			// Move z up one (to index 1).
+			const writes = planReorder(ordered, 'z', 1);
+			expect(writes).toHaveLength(1);
+			expect(writes[0].id).toBe('z');
+			expect('a0' < writes[0].sort_order).toBe(true);
+			expect(writes[0].sort_order < 'a1').toBe(true);
+		});
+
+		it('returns no writes for a true no-op move', () => {
+			const ordered = [
+				{ id: 'x', sort_order: 'a0' },
+				{ id: 'y', sort_order: 'a1' }
+			];
+			// Moving y to its own index is a no-op.
+			expect(planReorder(ordered, 'y', 1)).toEqual([]);
+		});
+
+		it('REBALANCES a degenerate all-"a0" group instead of throwing, and reorders correctly', () => {
+			const ordered = [
+				{ id: 'x', sort_order: 'a0' },
+				{ id: 'y', sort_order: 'a0' },
+				{ id: 'z', sort_order: 'a0' }
+			];
+			// Move z up to the front (index 0). All neighbours are "a0" → degenerate.
+			let writes: ReturnType<typeof planReorder> = [];
+			expect(() => {
+				writes = planReorder(ordered, 'z', 0);
+			}).not.toThrow();
+
+			// A rebalance rewrites the whole group with distinct, ordered keys.
+			expect(writes.length).toBeGreaterThan(0);
+
+			// Apply the writes and confirm the intended final order: z, x, y.
+			const byId = new Map(ordered.map((e) => [e.id, { ...e }]));
+			for (const w of writes) byId.get(w.id)!.sort_order = w.sort_order;
+			const finalOrder = [...byId.values()].sort((a, b) =>
+				compareSortKeys(a.sort_order, b.sort_order)
+			);
+			expect(finalOrder.map((e) => e.id)).toEqual(['z', 'x', 'y']);
+			// Keys are strictly increasing and distinct.
+			const keys = finalOrder.map((e) => e.sort_order);
+			expect(new Set(keys).size).toBe(keys.length);
+			expect([...keys].sort()).toEqual(keys);
+		});
+
+		it('REBALANCES a degenerate all-empty-key group instead of no-oping', () => {
+			const ordered = [
+				{ id: 'x', sort_order: '' },
+				{ id: 'y', sort_order: '' },
+				{ id: 'z', sort_order: '' }
+			];
+			// Move x down to the end (index 2).
+			let writes: ReturnType<typeof planReorder> = [];
+			expect(() => {
+				writes = planReorder(ordered, 'x', 2);
+			}).not.toThrow();
+			expect(writes.length).toBeGreaterThan(0);
+
+			const byId = new Map(ordered.map((e) => [e.id, { ...e }]));
+			for (const w of writes) byId.get(w.id)!.sort_order = w.sort_order;
+			const finalOrder = [...byId.values()].sort((a, b) =>
+				compareSortKeys(a.sort_order, b.sort_order)
+			);
+			// Intended final order after moving x to the end: y, z, x.
+			expect(finalOrder.map((e) => e.id)).toEqual(['y', 'z', 'x']);
+			const keys = finalOrder.map((e) => e.sort_order);
+			expect(new Set(keys).size).toBe(keys.length);
+			expect(keys.every((k) => k.length > 0)).toBe(true);
 		});
 	});
 });

@@ -4,11 +4,20 @@
 	import BottomNav from '$lib/components/BottomNav.svelte';
 	import InstallPrompt from '$lib/components/InstallPrompt.svelte';
 	import SyncController from '$lib/components/SyncController.svelte';
+	import ToastHost from '$lib/components/ToastHost.svelte';
 	import { uiStore } from '$lib/stores/ui.svelte';
 	import { page } from '$app/state';
 	import { browser } from '$app/environment';
 
 	let { children } = $props();
+
+	// Surface otherwise-swallowed async failures (e.g. fire-and-forget reorder
+	// handlers) so they no longer vanish silently.
+	if (browser) {
+		window.addEventListener('unhandledrejection', (event) => {
+			console.error('Unhandled promise rejection:', event.reason);
+		});
+	}
 
 	const isShoppingMode = $derived(
 		page.url.pathname === '/shopping' || page.url.pathname.endsWith('/shopping')
@@ -36,6 +45,7 @@
 </div>
 
 <InstallPrompt />
+<ToastHost />
 {#if browser}
 	<SyncController />
 {/if}

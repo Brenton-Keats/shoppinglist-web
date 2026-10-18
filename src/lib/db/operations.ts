@@ -1,10 +1,12 @@
-import type { UpdateSpec } from 'dexie';
+import type { Table, UpdateSpec } from 'dexie';
 import { db } from './database';
 import { recordChange } from './changes';
 import { serialize } from './serialize';
 import { generateUUID, now, isSoftDeleted } from './utils';
+import { compareSortKeys, sortKeyAfter } from '$lib/utils/ordering';
 import type {
 	BaseEntity,
+	ChangeRecord,
 	Product,
 	List,
 	Section,
@@ -27,6 +29,54 @@ export async function createEntity<T extends BaseEntity>(
 
 	await db.table<T>(table).add(serialize(newEntity));
 	return newEntity;
+}
+
+/**
+ * Create an entity appended to the END of its group, deriving its sort_order
+ * from the MAX existing key in that group (by compareSortKeys) rather than from
+ * a caller-supplied array position. The max read and the row write happen in a
+ * single Dexie transaction, so two concurrent creates against an (apparently)
+ * empty group cannot both read null and both emit "a0" — the second sees the
+ * first's row and appends after it.
+ *
+ * `inGroup` selects the sibling set the new key is ordered within (active rows
+ * only). Any `sort_order` on the supplied entity is ignored and overwritten.
+ */
+export async function createEntityAtEnd<T extends BaseEntity & { sort_order: string }>(
+	table: string,
+	changeEntity: ChangeRecord['entity_type'],
+	entity: Omit<T, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>,
+	inGroup: (e: T) => boolean = () => true
+): Promise<T> {
+	const tbl = db.table<T>(table) as Table<T, string>;
+
+	return db.transaction('rw', tbl, db.changes, async () => {
+		const all = await tbl.toArray();
+		const maxKey = all
+			.filter((e) => !isSoftDeleted(e) && inGroup(e))
+			.reduce<string | null>((max, e) => {
+				const key = e.sort_order ?? null;
+				if (max === null) return key;
+				return compareSortKeys(key, max) > 0 ? key : max;
+			}, null);
+
+		const timestamp = now();
+		const newEntity = {
+			...entity,
+			sort_order: sortKeyAfter(maxKey),
+			id: generateUUID(),
+			created_at: timestamp,
+			updated_at: timestamp,
+			deleted_at: null
+		} as T;
+
+		await tbl.add(serialize(newEntity));
+		await recordChange(changeEntity, newEntity.id, 'create', {
+			...entity,
+			sort_order: newEntity.sort_order
+		});
+		return newEntity;
+	});
 }
 
 export async function updateEntity<T extends BaseEntity>(
@@ -82,6 +132,23 @@ export async function createProduct(
 	return product;
 }
 
+/**
+ * Create a product appended to the end of its default-section group, deriving
+ * its sort_order atomically from the current group max. Pass the product data
+ * without a sort_order (any supplied value is ignored).
+ */
+export async function createProductAtEnd(
+	data: Omit<Product, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'sort_order'>
+): Promise<Product> {
+	const sectionId = data.default_section_id ?? null;
+	return createEntityAtEnd<Product>(
+		'products',
+		'Product',
+		{ ...data, sort_order: '' } as Omit<Product, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>,
+		(p) => (p.default_section_id ?? null) === sectionId
+	);
+}
+
 export async function updateProduct(id: string, updates: Partial<Product>): Promise<Product> {
 	const product = await updateEntity<Product>('products', id, updates);
 	await recordChange('Product', id, 'update', { ...updates });
@@ -122,6 +189,19 @@ export async function createSection(
 	return section;
 }
 
+/**
+ * Create a section appended to the end, deriving sort_order atomically from the
+ * current max across all active sections.
+ */
+export async function createSectionAtEnd(
+	data: Omit<Section, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'sort_order'>
+): Promise<Section> {
+	return createEntityAtEnd<Section>('sections', 'Section', {
+		...data,
+		sort_order: ''
+	} as Omit<Section, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>);
+}
+
 export async function updateSection(id: string, updates: Partial<Section>): Promise<Section> {
 	const section = await updateEntity<Section>('sections', id, updates);
 	await recordChange('Section', id, 'update', { ...updates });
@@ -142,6 +222,19 @@ export async function createStore(
 	return store;
 }
 
+/**
+ * Create a store appended to the end, deriving sort_order atomically from the
+ * current max across all active stores.
+ */
+export async function createStoreAtEnd(
+	data: Omit<Store, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'sort_order'>
+): Promise<Store> {
+	return createEntityAtEnd<Store>('stores', 'Store', {
+		...data,
+		sort_order: ''
+	} as Omit<Store, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>);
+}
+
 export async function updateStore(id: string, updates: Partial<Store>): Promise<Store> {
 	const store = await updateEntity<Store>('stores', id, updates);
 	await recordChange('Store', id, 'update', { ...updates });
@@ -160,6 +253,23 @@ export async function createListItem(
 	const item = await createEntity<ListItem>('listItems', data);
 	await recordChange('ListItem', item.id, 'create', { ...data });
 	return item;
+}
+
+/**
+ * Create a list item appended to the end of its list, deriving sort_order
+ * atomically from the current max among the list's active items. Prevents two
+ * quick adds against an empty list from both emitting "a0".
+ */
+export async function createListItemAtEnd(
+	data: Omit<ListItem, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'sort_order'>
+): Promise<ListItem> {
+	const listId = data.list_id;
+	return createEntityAtEnd<ListItem>(
+		'listItems',
+		'ListItem',
+		{ ...data, sort_order: '' } as Omit<ListItem, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>,
+		(i) => i.list_id === listId
+	);
 }
 
 export async function updateListItem(id: string, updates: Partial<ListItem>): Promise<ListItem> {

@@ -1,13 +1,12 @@
 import type { List, ListItem, Product, Section, Store } from '$lib/types';
 import { db } from '$lib/db/database';
-import { sortKeyAfter, compareSortKeys } from '$lib/utils/ordering';
 import {
 	getActiveList,
 	getItemsByList
 } from '$lib/db/queries';
 import {
-	createProduct,
-	createListItem,
+	createProductAtEnd,
+	createListItemAtEnd,
 	updateListItem,
 	softDeleteListItem,
 	getActiveEntities
@@ -90,7 +89,7 @@ class ListStore {
 		const existing = this.items.find((i) => i.product_id === productId);
 		if (existing) return;
 
-		const item = await createListItem({
+		const item = await createListItemAtEnd({
 			list_id: this.activeList.id,
 			product_id: productId,
 			name_snapshot: resolvedProduct.name,
@@ -99,8 +98,7 @@ class ListStore {
 			quantity: null,
 			unit: null,
 			completed: false,
-			completed_at: null,
-			sort_order: sortKeyAfter(this.items.length > 0 ? this.items[this.items.length - 1].sort_order : null)
+			completed_at: null
 		});
 
 		this.items = [...this.items, item];
@@ -114,21 +112,16 @@ class ListStore {
 	): Promise<void> {
 		if (!this.activeList) return;
 
-		const lastProductKey = [...this.products.values()]
-			.sort((a, b) => compareSortKeys(a.sort_order, b.sort_order))
-			.at(-1)?.sort_order ?? null;
-
-		const product = await createProduct({
+		const product = await createProductAtEnd({
 			name: name.trim(),
 			default_section_id: sectionId ?? null,
 			default_store_id: storeId ?? null,
-			sort_order: sortKeyAfter(lastProductKey),
 			active: true
 		});
 
 		this.products = new Map(this.products).set(product.id, product);
 
-		const item = await createListItem({
+		const item = await createListItemAtEnd({
 			list_id: this.activeList.id,
 			product_id: product.id,
 			name_snapshot: product.name,
@@ -137,8 +130,7 @@ class ListStore {
 			quantity: null,
 			unit: null,
 			completed: false,
-			completed_at: null,
-			sort_order: sortKeyAfter(this.items.length > 0 ? this.items[this.items.length - 1].sort_order : null)
+			completed_at: null
 		});
 
 		this.items = [...this.items, item];
