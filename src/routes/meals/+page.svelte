@@ -3,6 +3,7 @@
 	import { fly, fade } from 'svelte/transition';
 	import { Plus, Pencil, Trash2, X, Check, ChevronRight, Search, UtensilsCrossed } from '@lucide/svelte';
 	import { mealStore } from '$lib/stores/meal.svelte';
+	import { listStore } from '$lib/stores/list.svelte';
 	import { uiStore } from '$lib/stores/ui.svelte';
 	import { syncStateStore } from '$lib/sync/state.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
@@ -32,8 +33,15 @@
 
 	const productsArray = $derived(Array.from(mealStore.products.values()));
 
+	// The active list is the "week" meal selection is scoped to. If there is no
+	// active list, the per-meal selection toggle is disabled with a hint.
+	const activeList = $derived(listStore.activeList);
+
 	onMount(async () => {
 		await mealStore.loadMeals();
+		// Ensure we know the active list and its current selections.
+		if (!listStore.activeList) await listStore.loadActiveList();
+		if (listStore.activeList) await mealStore.loadSelections(listStore.activeList.id);
 	});
 
 	// Reload when sync brings new data (mirrors the main list page pattern).
@@ -44,8 +52,14 @@
 			lastDataVersion = version;
 			mealStore.loadMeals();
 			if (expandedMealId) mealStore.loadMealProducts(expandedMealId);
+			if (listStore.activeList) mealStore.loadSelections(listStore.activeList.id);
 		}
 	});
+
+	async function toggleSelection(mealId: string) {
+		if (!activeList) return;
+		await mealStore.toggleSelection(mealId, activeList.id);
+	}
 
 	async function addMeal() {
 		const name = newMealName.trim();
@@ -207,6 +221,7 @@
 								</button>
 							</div>
 						{:else}
+							{@const isSelected = mealStore.isSelected(meal.id)}
 							<div class="flex w-full items-center gap-1">
 								<button
 									onclick={() => toggleExpand(meal.id)}
@@ -221,6 +236,31 @@
 									<span class="flex-1 truncate text-sm font-medium text-[var(--color-text)]">{meal.name}</span>
 									{#if mealProducts.length > 0}
 										<span class="text-xs font-medium text-[var(--color-accent)]">{mealProducts.length}</span>
+									{/if}
+								</button>
+								<button
+									onclick={() => toggleSelection(meal.id)}
+									disabled={!activeList}
+									data-testid="meal-select-toggle"
+									data-selected={isSelected ? 'true' : 'false'}
+									aria-pressed={isSelected}
+									title={activeList
+										? isSelected
+											? 'Selected for this list'
+											: 'Add to this list'
+										: 'No active list to add to'}
+									class="flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 {isSelected
+										? 'bg-[var(--color-primary)] text-white active:brightness-90'
+										: 'bg-[var(--color-bg)] text-[var(--color-text-secondary)] ring-1 ring-[var(--color-border)] active:bg-[var(--color-border)]'}"
+									style="min-height: 36px;"
+									aria-label={isSelected ? `Remove ${meal.name} from this list` : `Add ${meal.name} to this list`}
+								>
+									{#if isSelected}
+										<Check size={14} />
+										<span>Selected</span>
+									{:else}
+										<Plus size={14} />
+										<span>Add</span>
 									{/if}
 								</button>
 								<button
