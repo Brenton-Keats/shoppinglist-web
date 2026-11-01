@@ -165,11 +165,18 @@
 		{/if}
 	</div>
 
-	<!-- Exit button -->
+	<!-- Exit footer (Item 3): a non-scrolling flex child OUTSIDE the
+	     flex-1 overflow-y-auto content above, so it is pinned to the bottom of
+	     the h-[100dvh] column on lists of any length. Safe-area padding keeps it
+	     clear of the iOS home indicator. -->
 	{#if totalItems > 0}
-		<div class="border-t border-[var(--color-border)] bg-[var(--color-bg)] p-4">
+		<div
+			class="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-bg)] p-4"
+			style="padding-bottom: calc(1rem + var(--safe-area-bottom))"
+		>
 			<button
 				onclick={handleExit}
+				data-testid="exit-shopping"
 				class="flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-3 text-sm font-semibold text-[var(--color-text)] active:bg-[var(--color-border)]"
 			>
 				<X size={18} />

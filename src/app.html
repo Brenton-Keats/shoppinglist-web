@@ -2,7 +2,18 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<!--
+			interactive-widget=resizes-content (Item 2): when the soft keyboard
+			opens, resize the LAYOUT viewport rather than leaving it full-height and
+			pushing it up under the keyboard. position:fixed tracks the layout
+			viewport, so this keeps the fixed bottom nav pinned above the keyboard on
+			iOS/Android instead of scrolling away with the page. Combined with the
+			app shell's 100dvh height and env(safe-area-inset-bottom) padding.
+		-->
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+		/>
 		<meta name="theme-color" content="#075ea8" media="(prefers-color-scheme: light)" />
 		<meta name="theme-color" content="#050608" media="(prefers-color-scheme: dark)" />
 		<meta name="apple-mobile-web-app-capable" content="yes" />
