@@ -124,3 +124,34 @@ test('list page search + create still works (no regression)', async ({ page }) =
 	await search.fill('');
 	await expect(page.getByTestId('add-new-product')).toHaveCount(0);
 });
+
+// ---------------------------------------------------------------------------
+// Items 4+7 — the list page consumes the SAME shared ProductSearchCreate
+// control (not a parallel copy). This asserts the shared component's
+// create-ZONE + clear-on-create behaviour on the LIST page specifically, so
+// the "used on BOTH pages" gate is exercised, not just assumed.
+// ---------------------------------------------------------------------------
+test('list page uses the shared create ZONE and clears the input on create (Items 4+7)', async ({
+	page
+}) => {
+	await gotoApp(page);
+
+	const search = page.getByTestId('search-input');
+	// Typing a brand-new name shows the shared create ZONE.
+	await search.fill('Rhubarb');
+	const createZone = page.getByTestId('add-new-product');
+	await expect(createZone).toBeVisible();
+	await createZone.click();
+
+	// Creating opens the product edit sheet; dismiss it.
+	const dialog = page.getByRole('dialog');
+	await expect(dialog).toBeVisible();
+	await dialog.getByRole('textbox', { name: 'Name' }).press('Escape');
+	await expect(dialog).toBeHidden();
+
+	// The shared component cleared the input after create (clear-on-create),
+	// and the product landed on the list.
+	await expect(search).toHaveValue('');
+	await expect(page.getByTestId('add-new-product')).toHaveCount(0);
+	await expect(productRow(page, 'Rhubarb')).toHaveAttribute('data-on-list', 'true');
+});

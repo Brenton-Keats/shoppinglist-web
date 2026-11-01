@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Search, X, ChevronUp, ChevronDown, ChevronRight, Plus, Archive, Pencil, Check } from '@lucide/svelte';
+	import { X, ChevronUp, ChevronDown, ChevronRight, Plus, Archive, Pencil, Check } from '@lucide/svelte';
 	import { fly, fade } from 'svelte/transition';
 	import { listStore } from '$lib/stores/list.svelte';
 	import { mealStore } from '$lib/stores/meal.svelte';
@@ -8,6 +8,7 @@
 	import { preferencesStore } from '$lib/stores/preferences.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import QuantityControl from '$lib/components/QuantityControl.svelte';
+	import ProductSearchCreate from '$lib/components/ProductSearchCreate.svelte';
 	import {
 		buildMealPlanRows,
 		buildSuggestedRows,
@@ -369,15 +370,17 @@
 		}
 	}
 
-	async function addNewProduct() {
-		const name = searchQuery.trim();
+	// Create a brand-new product from the shared ProductSearchCreate create zone.
+	// The component passes the trimmed query and clears the bound `searchQuery`
+	// itself (clear-on-create), so this only does the create + edit-sheet open.
+	async function addNewProduct(rawName: string) {
+		const name = rawName.trim();
 		if (!name) return;
 
 		// Create product + list item; both derive their sort_order atomically from
 		// the current group max (see createProductAtEnd / createListItemAtEnd).
 		await listStore.addNewProductAndItem(name, null, null);
 
-		searchQuery = '';
 		await loadProducts();
 
 		// Immediately open the edit sheet for the new product
@@ -385,10 +388,6 @@
 		if (newProduct) {
 			openEditSheet(newProduct);
 		}
-	}
-
-	function clearSearch() {
-		searchQuery = '';
 	}
 
 	function toggleSection(sectionId: string | null) {
@@ -629,26 +628,27 @@
 				<span class="text-xs text-[var(--color-text-secondary)]">Switch list</span>
 			</button>
 		</div>
+		<!-- Search + create: the SHARED ProductSearchCreate (Items 4 + 7) — the
+		     same component the meals page uses. It owns the search input, the
+		     clear (X) button, and the dashed "New …" create ZONE (shown only when
+		     the query matches no existing product). The list page renders its own
+		     grouped result rows BELOW (interleaved with the synthetic Meal Plan /
+		     Suggested sections and preserving per-section ordering/collapse), so
+		     we pass `items={[]}` (no duplicate flat rows here) and drive the create
+		     zone explicitly with `isNew={isNewProduct}`. Selecting is a no-op on
+		     this page (no flat rows); creating goes through `addNewProduct`. -->
 		<div class="px-4 pb-2">
-			<div class="flex items-center gap-2 rounded-2xl bg-[var(--color-surface)] px-4 py-3 shadow-sm ring-1 ring-[var(--color-border)]">
-				<Search size={18} class="shrink-0 text-[var(--color-text-secondary)]" />
-				<input
-					type="text"
-					placeholder="Search or add items..."
-					bind:value={searchQuery}
-					data-testid="search-input"
-					class="flex-1 bg-transparent text-base text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-secondary)]/60"
-				/>
-				{#if searchQuery}
-					<button
-						onclick={clearSearch}
-						class="flex shrink-0 items-center justify-center rounded-full p-1 text-[var(--color-text-secondary)] active:bg-[var(--color-border)]"
-						aria-label="Clear search"
-					>
-						<X size={16} />
-					</button>
-				{/if}
-			</div>
+			<ProductSearchCreate
+				bind:query={searchQuery}
+				items={[]}
+				isNew={isNewProduct}
+				onSelect={() => {}}
+				onCreate={addNewProduct}
+				placeholder="Search or add items..."
+				createLabel="New"
+				searchTestId="search-input"
+				createTestId="add-new-product"
+			/>
 		</div>
 
 		<!-- Product catalog -->
@@ -660,22 +660,8 @@
 				</div>
 			{/if}
 
-			<!-- "New" item row when search doesn't match -->
-			{#if isNewProduct && searchQuery.trim()}
-				<button
-					onclick={addNewProduct}
-					data-testid="add-new-product"
-					class="mb-3 flex w-full items-center gap-3 rounded-xl border border-dashed border-[var(--color-primary)] bg-[var(--color-primary)]/5 px-4 py-3 text-left active:bg-[var(--color-primary)]/10"
-				>
-					<div class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--color-primary)] text-white" style="min-height: auto; min-width: auto;">
-						<span class="text-xs font-bold">+</span>
-					</div>
-					<div class="flex-1">
-						<span class="text-sm font-medium text-[var(--color-text)]">{searchQuery.trim()}</span>
-						<span class="ml-2 rounded bg-[var(--color-primary)]/10 px-1.5 py-0.5 text-xs font-medium text-[var(--color-accent)]">New</span>
-					</div>
-				</button>
-			{/if}
+			<!-- The "New …" create row now lives in the shared ProductSearchCreate
+			     above (create ZONE), so no per-page create button is rendered here. -->
 
 			<!-- MEAL PLAN + SUGGESTED (synthetic sections, Phase 3).
 			     Rendered FIRST, above all normal product groups. Hidden while
