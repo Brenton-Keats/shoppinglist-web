@@ -64,6 +64,18 @@ class MealStore {
 		return this.selections.has(mealId);
 	}
 
+	/**
+	 * The meals currently selected for the loaded list, resolved to the live
+	 * Meal rows (so the name reflects any rename). Derived from the reactive
+	 * `selections` map + `meals` list, so it recomputes automatically when a meal
+	 * is selected/deselected — this feeds the Phase-3 "Meal Plan" section. A
+	 * selected meal whose Meal row isn't loaded is skipped (defensive; it would
+	 * reappear once meals load).
+	 */
+	get selectedMeals(): Meal[] {
+		return this.meals.filter((m) => this.selections.has(m.id));
+	}
+
 	private async refreshPending(): Promise<void> {
 		syncStore.setPendingCount(await db.changes.where('synced').equals(0).count());
 	}

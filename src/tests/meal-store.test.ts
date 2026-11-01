@@ -217,4 +217,23 @@ describe('MealStore', () => {
 		const persisted = await getEntityById('meals', meal!.id);
 		expect((persisted as { name: string }).name).toBe('New Name');
 	});
+
+	it('selectedMeals returns only the selected meals, resolved to live Meal rows (Phase 3)', async () => {
+		const a = await mealStore.createMeal('Alpha');
+		const b = await mealStore.createMeal('Bravo');
+		await mealStore.createMeal('Charlie');
+		await mealStore.loadMeals();
+
+		const LIST = 'list-1';
+		await mealStore.selectMeal(a!.id, LIST);
+		await mealStore.selectMeal(b!.id, LIST);
+
+		// Only the two selected meals, as live Meal rows (name reflects renames).
+		const selected = mealStore.selectedMeals;
+		expect(selected.map((m) => m.id).sort()).toEqual([a!.id, b!.id].sort());
+
+		// Deselecting drops it from selectedMeals (feeds reactive Meal Plan hide).
+		await mealStore.deselectMeal(a!.id, LIST);
+		expect(mealStore.selectedMeals.map((m) => m.id)).toEqual([b!.id]);
+	});
 });

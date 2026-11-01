@@ -76,7 +76,8 @@ class ListStore {
 	async addItem(
 		productId: string,
 		sectionId?: string | null,
-		storeId?: string | null
+		storeId?: string | null,
+		quantity = 1
 	): Promise<void> {
 		if (!this.activeList) return;
 
@@ -97,7 +98,9 @@ class ListStore {
 			name_snapshot: resolvedProduct.name,
 			section_id: sectionId ?? resolvedProduct.default_section_id ?? null,
 			store_id: storeId ?? resolvedProduct.default_store_id ?? null,
-			quantity: 1,
+			// Default 1; tap-to-add from the Suggested section passes the summed
+			// meal quantity. Clamped to a positive integer so quantity rules hold.
+			quantity: clampQuantity(quantity),
 			unit: null,
 			completed: false,
 			completed_at: null

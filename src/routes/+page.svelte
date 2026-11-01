@@ -3,10 +3,18 @@
 	import { Search, X, ChevronUp, ChevronDown, ChevronRight, Plus, Archive, Pencil, Check } from '@lucide/svelte';
 	import { fly, fade } from 'svelte/transition';
 	import { listStore } from '$lib/stores/list.svelte';
+	import { mealStore } from '$lib/stores/meal.svelte';
 	import { uiStore } from '$lib/stores/ui.svelte';
 	import { preferencesStore } from '$lib/stores/preferences.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import QuantityControl from '$lib/components/QuantityControl.svelte';
+	import {
+		buildMealPlanRows,
+		buildSuggestedRows,
+		hasMealPlan,
+		hasSuggested
+	} from '$lib/meals/suggested-view';
+	import type { SuggestedProduct } from '$lib/meals/suggested';
 	import { db } from '$lib/db/database';
 	import { getActiveEntities, createList, updateProduct, updateList, createSectionAtEnd, createStoreAtEnd, updateListItem, moveEntityToGroupEnd } from '$lib/db/operations';
 	import { compareSortKeys, sortKeyAfter, planReorder } from '$lib/utils/ordering';
@@ -31,6 +39,78 @@
 
 	// Set of product IDs currently on the active list
 	const onListProductIds = $derived(new Set(listStore.items.map(i => i.product_id)));
+
+	// ---------------------------------------------------------------------------
+	// MEALS — "Meal Plan" + "Suggested" synthetic sections (Phase 3).
+	//
+	// These render ABOVE the normal product groups and live entirely OUTSIDE the
+	// product grouping, so the one-bucket-per-item contract is untouched (a
+	// Suggested product is a would-be ListItem, not yet an item, so there is no
+	// double-render — assessment §4).
+	//
+	// REUSE, don't recompute: the summed+curated suggested products come straight
+	// from the Phase-2 selector `mealStore.computeSuggestedForList` (which gathers
+	// selected meals → their MealProducts → contributions, the already-on-list set,
+	// and calls the pure `computeSuggested`). We only ADAPT its output to rows.
+	// ---------------------------------------------------------------------------
+
+	let suggestedProducts = $state<SuggestedProduct[]>([]);
+
+	// Recompute the suggested products whenever the inputs that feed the Phase-2
+	// selector change: the active list, the set of items on it (so tap-to-add
+	// reactively drops a row once the product becomes a ListItem — the curation
+	// rule), and the meal selections (select/deselect). We read these reactive
+	// values synchronously so the effect re-subscribes, then run the async
+	// Dexie-backed selector and assign the result.
+	$effect(() => {
+		const list = listStore.activeList;
+		// Touch the reactive dependencies so this effect re-runs on their change.
+		void listStore.items;
+		void mealStore.selections;
+		if (!list) {
+			suggestedProducts = [];
+			return;
+		}
+		let cancelled = false;
+		mealStore.computeSuggestedForList(list.id).then((rows) => {
+			if (!cancelled) suggestedProducts = rows;
+		});
+		return () => {
+			cancelled = true;
+		};
+	});
+
+	// Adapt the Phase-2 outputs into the two synthetic view sections.
+	const mealPlanRows = $derived(buildMealPlanRows(mealStore.selectedMeals));
+	const suggestedRows = $derived(
+		buildSuggestedRows(suggestedProducts, (id) => listStore.products.get(id)?.name)
+	);
+
+	// Empty-state choice (locked): hide BOTH sections entirely when no meals are
+	// selected (keep the list clean). Meal Plan shows whenever meals are planned;
+	// Suggested shows only when it has rows (all-already-on-list → Suggested hides
+	// but Meal Plan can still show what was planned).
+	const showMealPlan = $derived(hasMealPlan(mealPlanRows.length));
+	const showSuggested = $derived(hasSuggested(suggestedRows.length));
+
+	async function addSuggested(productId: string, quantity: number) {
+		const product = listStore.products.get(productId);
+		// Reuse the normal add path; pass the summed meal quantity (clamped to a
+		// positive integer inside the store). Once added, the product is on the
+		// list → computeSuggestedForList excludes it → the reactive effect above
+		// drops it from Suggested automatically.
+		await listStore.addItem(
+			productId,
+			product?.default_section_id ?? null,
+			product?.default_store_id ?? null,
+			quantity
+		);
+	}
+
+	async function deselectMeal(mealId: string) {
+		if (!listStore.activeList) return;
+		await mealStore.deselectMeal(mealId, listStore.activeList.id);
+	}
 
 	// Filter products by search query
 	const filteredProducts = $derived.by(() => {
@@ -234,6 +314,11 @@
 		await listStore.loadActiveList();
 		await ensureActiveList();
 		await loadProducts();
+		// Load meals + the active list's selections so the Meal Plan / Suggested
+		// sections can render. computeSuggestedForList reads Dexie directly, so it
+		// does not depend on meal products being cached in memory.
+		await mealStore.loadMeals();
+		if (listStore.activeList) await mealStore.loadSelections(listStore.activeList.id);
 	});
 
 	// Reload products when sync brings new data
@@ -244,6 +329,10 @@
 		if (version > lastDataVersion) {
 			lastDataVersion = version;
 			loadProducts();
+			// Keep the Meal Plan / Suggested sections current when sync brings new
+			// meal data. Reassigning selections re-runs the suggested effect.
+			mealStore.loadMeals();
+			if (listStore.activeList) mealStore.loadSelections(listStore.activeList.id);
 		}
 	});
 
@@ -564,6 +653,75 @@
 						<span class="ml-2 rounded bg-[var(--color-primary)]/10 px-1.5 py-0.5 text-xs font-medium text-[var(--color-accent)]">New</span>
 					</div>
 				</button>
+			{/if}
+
+			<!-- MEAL PLAN + SUGGESTED (synthetic sections, Phase 3).
+			     Rendered FIRST, above all normal product groups. Hidden while
+			     searching (search is for adding products; these are a planning
+			     aid) and hidden entirely when no meals are selected. -->
+			{#if !searchQuery.trim()}
+				{#if showMealPlan}
+					<div class="mt-3 first:mt-0" data-testid="meal-plan-section">
+						<div class="flex w-full items-center gap-1 py-1.5">
+							<span class="flex-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+								Meal Plan
+							</span>
+							<span class="text-xs font-medium text-[var(--color-accent)]">{mealPlanRows.length}</span>
+						</div>
+						{#each mealPlanRows as row (row.meal_id)}
+							<div
+								class="flex items-center gap-1 rounded-lg"
+								data-testid="meal-plan-row"
+								data-meal-name={row.name}
+							>
+								<span class="flex-1 px-2 py-2.5 text-sm font-medium text-[var(--color-text)]">
+									{row.name}
+								</span>
+								<!-- Convenience deselect — reuses the Phase-2 deselect path. -->
+								<button
+									onclick={() => deselectMeal(row.meal_id)}
+									data-testid="meal-plan-deselect"
+									class="flex shrink-0 items-center justify-center rounded-full p-2 text-[var(--color-text-secondary)] active:bg-[var(--color-border)]"
+									style="min-height: 36px; min-width: 36px;"
+									aria-label={`Remove ${row.name} from meal plan`}
+								>
+									<X size={16} />
+								</button>
+							</div>
+						{/each}
+					</div>
+				{/if}
+
+				{#if showSuggested}
+					<div class="mt-3 first:mt-0" data-testid="suggested-section">
+						<div class="flex w-full items-center gap-1 py-1.5">
+							<span class="flex-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+								Suggested
+							</span>
+							<span class="text-xs font-medium text-[var(--color-accent)]">{suggestedRows.length}</span>
+						</div>
+						{#each suggestedRows as row (row.product_id)}
+							<!-- Tap-to-add: adds the product to the active list with the
+							     summed meal quantity. Afterwards the curation rule drops it
+							     from Suggested (reactive recompute). -->
+							<button
+								onclick={() => addSuggested(row.product_id, row.quantity)}
+								data-testid="suggested-row"
+								data-product-name={row.name}
+								data-quantity={row.quantity}
+								class="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left active:bg-[var(--color-surface)]"
+							>
+								<div class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 border-dashed border-[var(--color-primary)]" style="min-height: auto; min-width: auto;">
+									<Plus size={14} class="text-[var(--color-primary)]" />
+								</div>
+								<span class="flex-1 text-sm text-[var(--color-text)]">{row.name}</span>
+								<span class="rounded-lg px-3 text-base font-semibold text-[var(--color-accent)]">
+									×{row.quantity}
+								</span>
+							</button>
+						{/each}
+					</div>
+				{/if}
 			{/if}
 
 			<!-- Grouped products -->
