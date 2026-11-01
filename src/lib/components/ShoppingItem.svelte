@@ -1,16 +1,31 @@
 <script lang="ts">
 	import type { ListItem } from '$lib/types';
 	import QuantityControl from './QuantityControl.svelte';
+	import { effectiveQuantity } from '$lib/utils/quantity';
 
 	interface Props {
 		item: ListItem;
 		sectionName: string | null;
 		storeName: string | null;
 		onComplete: () => void;
-		onAdjustQuantity: (delta: number) => void;
+		/** Optional in read-only mode (shop mode passes no adjuster). */
+		onAdjustQuantity?: (delta: number) => void;
+		/**
+		 * Shop mode (Item 9): render the quantity as plain read-only TEXT with no
+		 * editable touch surface. The list-management view leaves this false and
+		 * keeps the editable QuantityControl.
+		 */
+		readOnly?: boolean;
 	}
 
-	let { item, sectionName, storeName, onComplete, onAdjustQuantity }: Props = $props();
+	let {
+		item,
+		sectionName,
+		storeName,
+		onComplete,
+		onAdjustQuantity,
+		readOnly = false
+	}: Props = $props();
 
 	function handleTap() {
 		onComplete();
@@ -57,12 +72,24 @@
 		</div>
 	</button>
 
-	<!-- Quantity badge + inline control: distinct hit area on the right. -->
+	<!-- Quantity: editable control on the list view, read-only text in shop mode. -->
 	<div class="flex items-center pr-3">
-		<QuantityControl
-			quantity={item.quantity}
-			onAdjust={onAdjustQuantity}
-			label={item.name_snapshot}
-		/>
+		{#if readOnly}
+			<span
+				data-testid="shop-quantity-text"
+				data-quantity={effectiveQuantity(item.quantity)}
+				class="px-3 text-base font-semibold {effectiveQuantity(item.quantity) <= 1
+					? 'text-[var(--color-text-secondary)]/50'
+					: 'text-[var(--color-text)]'}"
+			>
+				×{effectiveQuantity(item.quantity)}
+			</span>
+		{:else}
+			<QuantityControl
+				quantity={item.quantity}
+				onAdjust={(delta) => onAdjustQuantity?.(delta)}
+				label={item.name_snapshot}
+			/>
+		{/if}
 	</div>
 </div>

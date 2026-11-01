@@ -42,9 +42,7 @@
 		listStore.toggleItem(itemId);
 	}
 
-	function handleAdjustQuantity(itemId: string, delta: number) {
-		listStore.adjustItemQuantity(itemId, delta);
-	}
+	// Item 9: shop mode is read-only for quantity — no adjust handler is wired.
 
 	function handleExit() {
 		goto(resolve('/'));
@@ -126,7 +124,7 @@
 								sectionName={getSectionName(gi.item.section_id)}
 								storeName={getStoreName(gi.item.store_id)}
 								onComplete={() => handleToggleItem(gi.item.id)}
-								onAdjustQuantity={(delta) => handleAdjustQuantity(gi.item.id, delta)}
+								readOnly
 							/>
 						</div>
 					{/each}
@@ -155,7 +153,7 @@
 											sectionName={getSectionName(gi.item.section_id)}
 											storeName={getStoreName(gi.item.store_id)}
 											onComplete={() => handleToggleItem(gi.item.id)}
-											onAdjustQuantity={(delta) => handleAdjustQuantity(gi.item.id, delta)}
+											readOnly
 										/>
 									</div>
 								{/each}
