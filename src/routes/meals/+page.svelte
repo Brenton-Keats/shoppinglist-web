@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { fly, fade } from 'svelte/transition';
-	import { Plus, Pencil, Trash2, X, Check, ChevronRight, Search, UtensilsCrossed, Star, CalendarCheck } from '@lucide/svelte';
+	import { Plus, Pencil, Trash2, X, Check, ChevronRight, UtensilsCrossed, Star, CalendarCheck } from '@lucide/svelte';
 	import { mealStore } from '$lib/stores/meal.svelte';
 	import { listStore } from '$lib/stores/list.svelte';
 	import { uiStore } from '$lib/stores/ui.svelte';
@@ -9,12 +9,15 @@
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import QuantityControl from '$lib/components/QuantityControl.svelte';
+	import ProductSearchCreate from '$lib/components/ProductSearchCreate.svelte';
 	import type { Meal } from '$lib/types';
 
 	uiStore.setHeaderTitle('Meals');
 	uiStore.setShowBackButton(false);
 
-	// Add-meal input
+	// Meals CRUD search/create (Item 7): shared ProductSearchCreate — filter the
+	// existing meals and, when nothing matches, offer a Create zone. Replaces the
+	// old plain input + "Add" button. `newMealName` is the bound query.
 	let newMealName = $state('');
 
 	// Expanded meal (only one open at a time for a clean mobile view)
@@ -78,12 +81,28 @@
 	const normalMeals = $derived(mealStore.meals.filter((m) => !m.is_usual));
 	const usualMeals = $derived(mealStore.meals.filter((m) => m.is_usual));
 
-	async function addMeal() {
-		const name = newMealName.trim();
-		if (!name) return;
-		const meal = await mealStore.createMeal(name);
-		newMealName = '';
+	// Meals matching the CRUD search query (only when a query is present — with an
+	// empty query the full card list below is the browse view, so we show no
+	// duplicate result rows). Fed to the shared ProductSearchCreate.
+	const mealSearchResults = $derived.by(() => {
+		const q = newMealName.toLowerCase().trim();
+		if (!q) return [];
+		return mealStore.meals
+			.filter((m) => m.name.toLowerCase().includes(q))
+			.sort((a, b) => a.name.localeCompare(b.name));
+	});
+
+	// Create a meal from the shared component's create zone, then expand it.
+	async function createMealFromSearch(name: string) {
+		const trimmed = name.trim();
+		if (!trimmed) return;
+		const meal = await mealStore.createMeal(trimmed);
 		if (meal) await toggleExpand(meal.id);
+	}
+
+	// Selecting an existing meal in the CRUD search expands it (reuses toggleExpand).
+	async function selectMealFromSearch(meal: Meal) {
+		if (expandedMealId !== meal.id) await toggleExpand(meal.id);
 	}
 
 	async function toggleExpand(mealId: string) {
@@ -170,28 +189,21 @@
 			<LoadingSpinner />
 		</div>
 	{:else}
-		<!-- Add meal -->
+		<!-- Add/search meal (Item 7): shared search-with-create component. Filters
+		     existing meals; shows a Create zone when nothing matches; selecting a
+		     result expands the meal (clear-on-select). -->
 		<div class="px-4 pt-3 pb-2">
-			<div class="flex items-center gap-2 rounded-2xl bg-[var(--color-surface)] px-4 py-3 shadow-sm ring-1 ring-[var(--color-border)]">
-				<input
-					type="text"
-					placeholder="Add a meal..."
-					bind:value={newMealName}
-					data-testid="meal-name-input"
-					onkeydown={(e) => { if (e.key === 'Enter') addMeal(); }}
-					class="flex-1 bg-transparent text-base text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-secondary)]/60"
-				/>
-				<button
-					onclick={addMeal}
-					disabled={!newMealName.trim()}
-					data-testid="add-meal"
-					class="flex shrink-0 items-center justify-center rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-white disabled:opacity-40 active:brightness-90"
-					style="min-height: auto; min-width: auto;"
-					aria-label="Add meal"
-				>
-					<Plus size={16} />
-				</button>
-			</div>
+			<ProductSearchCreate
+				bind:query={newMealName}
+				items={mealSearchResults}
+				onSelect={selectMealFromSearch}
+				onCreate={createMealFromSearch}
+				placeholder="Search or add a meal..."
+				createLabel="New"
+				searchTestId="meal-name-input"
+				createTestId="add-meal"
+				itemTestId="meal-search-result"
+			/>
 		</div>
 
 		<div class="flex flex-col px-4 pb-24 pt-1">
@@ -485,39 +497,23 @@
 				</button>
 			</div>
 
-			<div class="mb-3 flex items-center gap-2 rounded-2xl bg-[var(--color-surface)] px-4 py-3 ring-1 ring-[var(--color-border)]">
-				<Search size={18} class="shrink-0 text-[var(--color-text-secondary)]" />
-				<input
-					type="text"
+			<!-- Product picker uses the SAME shared component (Item 4 clear-on-select).
+			     No create zone here — brand-new products are created on the List
+			     screen — so isNew is forced false and onCreate is a no-op. -->
+			<div class="overflow-y-auto" style="max-height: 55vh;">
+				<ProductSearchCreate
+					bind:query={pickerQuery}
+					items={pickerProducts}
+					onSelect={(p) => pickProduct(p.id)}
+					onCreate={() => {}}
+					isNew={false}
 					placeholder="Search products..."
-					bind:value={pickerQuery}
-					data-testid="meal-product-search"
-					class="flex-1 bg-transparent text-base text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-secondary)]/60"
+					searchTestId="meal-product-search"
+					itemTestId="meal-product-option"
+					emptyText={productsArray.length === 0
+						? 'No products yet. Add products from the List screen first.'
+						: 'No matching products.'}
 				/>
-			</div>
-
-			<div class="overflow-y-auto" style="max-height: 45vh;">
-				{#if pickerProducts.length === 0}
-					<p class="py-6 text-center text-sm text-[var(--color-text-secondary)]">
-						{productsArray.length === 0
-							? 'No products yet. Add products from the List screen first.'
-							: 'No matching products.'}
-					</p>
-				{:else}
-					{#each pickerProducts as product (product.id)}
-						<button
-							onclick={() => pickProduct(product.id)}
-							data-testid="meal-product-option"
-							data-product-name={product.name}
-							class="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left active:bg-[var(--color-surface)]"
-						>
-							<div class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--color-primary)] text-white" style="min-height: auto; min-width: auto;">
-								<Plus size={14} />
-							</div>
-							<span class="flex-1 truncate text-sm text-[var(--color-text)]">{product.name}</span>
-						</button>
-					{/each}
-				{/if}
 			</div>
 		</div>
 	</div>
