@@ -1,7 +1,7 @@
 import type { ListItem, Product, Section, Store } from '$lib/types';
 import type { PrimaryGroup, SecondaryGroup, GroupedItem } from './types';
 import { UNASSIGNED_ID, UNASSIGNED_SORT_ORDER } from './types';
-import { compareSortKeys } from '$lib/utils/ordering';
+import { compareSortKeys, compareItemsForDisplay } from '$lib/utils/ordering';
 
 /**
  * Shared item-driven grouping used by both view modes.
@@ -66,7 +66,16 @@ function compareGroups(
 }
 
 function sortGroupedItems(items: GroupedItem[]): GroupedItem[] {
-	return [...items].sort((a, b) => compareSortKeys(a.item.sort_order, b.item.sort_order));
+	// Shared within-section item ordering contract: order by the list item's
+	// fractional sort_order with a deterministic `id` tiebreak, so equal/degenerate
+	// (legacy duplicate `a0`) keys resolve IDENTICALLY here and on the list builder
+	// instead of falling back to unstable query/array order. See compareItemsForDisplay.
+	return [...items].sort((a, b) =>
+		compareItemsForDisplay(
+			{ sort_order: a.item.sort_order, id: a.item.id },
+			{ sort_order: b.item.sort_order, id: b.item.id }
+		)
+	);
 }
 
 function getOrCreateBucket(

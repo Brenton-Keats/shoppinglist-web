@@ -18,7 +18,7 @@
 	import type { SuggestedProduct } from '$lib/meals/suggested';
 	import { db } from '$lib/db/database';
 	import { getActiveEntities, createList, updateProduct, updateList, createSectionAtEnd, createStoreAtEnd, updateListItem, moveEntityToGroupEnd } from '$lib/db/operations';
-	import { compareSortKeys, compareSectionSortKeys, sortKeyAfter, planReorder } from '$lib/utils/ordering';
+	import { compareSortKeys, compareSectionSortKeys, compareItemsForDisplay, sortKeyAfter, planReorder } from '$lib/utils/ordering';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import type { Product, Section, Store, List, ListItem } from '$lib/types';
 
@@ -162,15 +162,40 @@
 			compareSectionSortKeys(a ? sectionOrder.get(a) : null, b ? sectionOrder.get(b) : null)
 		);
 
+		// Build product_id -> ListItem once so the on-list block can be ordered by
+		// the item's OWN fractional key+id, exactly as shop mode orders it. This is
+		// the shared within-section contract (investigation §4a-§4c): on-list items
+		// on BOTH screens order by ListItem.sort_order through compareItemsForDisplay
+		// with the SAME `id` tiebreak, so a degenerate/duplicate-key group resolves
+		// identically on both screens. Off-list products (never shown in shop mode)
+		// keep Product.sort_order, still via the shared comparator for a stable order.
+		const listItemByProduct = new Map(listStore.items.map(i => [i.product_id, i]));
+
 		for (const sectionId of sortedKeys) {
 			const section = sectionId ? allSections.find(s => s.id === sectionId) ?? null : null;
 			const products = sectionMap.get(sectionId)!;
-			// On-list items at the top, then by sort_order, then by name
+			// On-list items float to the top of the section (partition unchanged).
+			// Within the on-list block: order by the matching ListItem.sort_order.
+			// Within the off-list block: order by Product.sort_order. Both via the
+			// shared comparator with a deterministic `id` tiebreak.
 			products.sort((a, b) => {
 				if (a.onList !== b.onList) return a.onList ? -1 : 1;
-				const orderCmp = compareSortKeys(a.product.sort_order, b.product.sort_order);
-				if (orderCmp !== 0) return orderCmp;
-				return a.product.name.localeCompare(b.product.name);
+				if (a.onList) {
+					const ia = listItemByProduct.get(a.product.id);
+					const ib = listItemByProduct.get(b.product.id);
+					// Both are on-list, so both list items exist; fall back to product
+					// key/id only if a lookup is somehow missing (defensive).
+					if (ia && ib) {
+						return compareItemsForDisplay(
+							{ sort_order: ia.sort_order, id: ia.id },
+							{ sort_order: ib.sort_order, id: ib.id }
+						);
+					}
+				}
+				return compareItemsForDisplay(
+					{ sort_order: a.product.sort_order, id: a.product.id },
+					{ sort_order: b.product.sort_order, id: b.product.id }
+				);
 			});
 			groups.push({ section, products });
 		}

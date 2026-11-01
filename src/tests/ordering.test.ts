@@ -178,6 +178,49 @@ describe('fractional-indexing sort keys', () => {
 			expect([...keys].sort()).toEqual(keys);
 		});
 
+		// Lazy self-healing: the user chose Part 1 (shared comparator) over a
+		// migration BECAUSE a normal reorder already heals a degenerate group. The
+		// within-section reorder path (`applyProductReorder` in src/routes/+page.svelte)
+		// drives `planReorder` over the sorted group; when that group is degenerate
+		// (duplicate/legacy `a0` keys) planReorder rebalances it to clean, distinct,
+		// strictly-increasing keys, and every changed row is written (and recorded
+		// for sync via updateProduct/updateListItem → recordChange). This test proves
+		// the rebalance is genuinely reached for a degenerate LIST-ITEM group of the
+		// §3 aged-data shape (mix of duplicate `a0` and real keys).
+		it('lazy-heals a degenerate LIST-ITEM group on a normal reorder (distinct keys written)', () => {
+			// Aged list-item group for one section: i1=a0, i2=a0 (duplicate), i3=a1,
+			// i4=a2, i5=a3 — already sorted by compareSortKeys with an id tiebreak as
+			// the reorder path supplies it.
+			const ordered = [
+				{ id: 'i1', sort_order: 'a0' },
+				{ id: 'i2', sort_order: 'a0' },
+				{ id: 'i3', sort_order: 'a1' },
+				{ id: 'i4', sort_order: 'a2' },
+				{ id: 'i5', sort_order: 'a3' }
+			];
+			// User moves i5 to position 2 (index 1) — the reported scenario.
+			const writes = planReorder(ordered, 'i5', 1);
+
+			// Because the group is degenerate (i1/i2 share `a0`), planReorder must
+			// rebalance the WHOLE group rather than attempt a single colliding insert.
+			expect(writes.length).toBeGreaterThan(0);
+
+			const byId = new Map(ordered.map((e) => [e.id, { ...e }]));
+			for (const w of writes) byId.get(w.id)!.sort_order = w.sort_order;
+			const finalOrder = [...byId.values()].sort((a, b) =>
+				compareSortKeys(a.sort_order, b.sort_order)
+			);
+
+			// Intended order after moving i5 to position 2: i1, i5, i2, i3, i4.
+			expect(finalOrder.map((e) => e.id)).toEqual(['i1', 'i5', 'i2', 'i3', 'i4']);
+
+			// The healed keys are clean: distinct, non-empty, strictly increasing.
+			const keys = finalOrder.map((e) => e.sort_order);
+			expect(new Set(keys).size).toBe(keys.length);
+			expect(keys.every((k) => k.length > 0)).toBe(true);
+			expect([...keys].sort()).toEqual(keys);
+		});
+
 		it('REBALANCES a degenerate all-empty-key group instead of no-oping', () => {
 			const ordered = [
 				{ id: 'x', sort_order: '' },

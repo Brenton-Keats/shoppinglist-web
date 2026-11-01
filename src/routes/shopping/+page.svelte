@@ -4,7 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { listStore } from '$lib/stores/list.svelte';
-	import { compareSortKeys } from '$lib/utils/ordering';
+	import { compareItemsForDisplay } from '$lib/utils/ordering';
 	import { preferencesStore } from '$lib/stores/preferences.svelte';
 	import { projectItems } from '$lib/view-modes/projection';
 	import type { PrimaryGroup } from '$lib/view-modes/types';
@@ -103,8 +103,8 @@
 		{:else}
 			{#each groups as group (group.id)}
 				{@const allItems = group.secondaryGroups.flatMap(sg => sg.items)}
-				{@const incomplete = allItems.filter(gi => !gi.item.completed).sort((a, b) => compareSortKeys(a.item.sort_order, b.item.sort_order))}
-				{@const completed = allItems.filter(gi => gi.item.completed).sort((a, b) => compareSortKeys(a.item.sort_order, b.item.sort_order))}
+				{@const incomplete = allItems.filter(gi => !gi.item.completed).sort((a, b) => compareItemsForDisplay({ sort_order: a.item.sort_order, id: a.item.id }, { sort_order: b.item.sort_order, id: b.item.id }))}
+				{@const completed = allItems.filter(gi => gi.item.completed).sort((a, b) => compareItemsForDisplay({ sort_order: a.item.sort_order, id: a.item.id }, { sort_order: b.item.sort_order, id: b.item.id }))}
 				{@const isExpanded = expandedCompleted.has(group.id)}
 
 				<div class="mt-4 first:mt-2">

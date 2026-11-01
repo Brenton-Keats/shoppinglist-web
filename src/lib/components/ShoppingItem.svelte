@@ -33,6 +33,8 @@
 </script>
 
 <div
+	data-testid="shop-item"
+	data-item-name={item.name_snapshot}
 	class="flex w-full items-stretch rounded-xl border border-[var(--color-border)] text-left transition-all {item.completed
 		? 'bg-[var(--color-surface)] opacity-50'
 		: 'bg-[var(--color-bg)]'}"

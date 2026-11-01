@@ -69,6 +69,29 @@ export function compareSortKeys(a: string | null | undefined, b: string | null |
 }
 
 /**
+ * Compare two WITHIN-SECTION items for display, giving a strict, deterministic
+ * TOTAL order over fractional keys. Equal or degenerate keys (e.g. legacy
+ * duplicate `"a0"` fallbacks) never fall back to unstable `Array.sort` order —
+ * they are broken by the row `id`, which is stable, present, unique, and
+ * identical across screens regardless of name edits.
+ *
+ * This is the single within-section ordering contract shared by the list
+ * builder and shop mode. Both screens MUST order the SAME field (the on-list
+ * item's `ListItem.sort_order`) through THIS comparator, or a degenerate group
+ * will still diverge between the two views.
+ *
+ * `compareSortKeys` is deliberately left unchanged (still returns 0 on equal
+ * keys); the deterministic tiebreak lives only in this wrapper.
+ */
+export function compareItemsForDisplay(
+	a: { sort_order: string | null | undefined; id: string },
+	b: { sort_order: string | null | undefined; id: string }
+): number {
+	const k = compareSortKeys(a.sort_order, b.sort_order);
+	return k !== 0 ? k : a.id.localeCompare(b.id);
+}
+
+/**
  * Compare two SECTION (or store) group keys for display ordering, forcing the
  * "unassigned" bucket (a null/empty key) to sort LAST — matching the grouping
  * used by shop mode (`view-modes/grouping.ts` `compareGroups`). This is the
