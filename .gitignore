@@ -31,6 +31,12 @@ vite.config.ts.timestamp-*
 .playwright-mcp
 .sisyphus
 
+# Playwright E2E (distinct from the unrelated .playwright-mcp above)
+/test-results
+/playwright-report
+/playwright/.cache
+/.playwright
+
 # Terraform
 **/.terraform/*
 *.tfstate

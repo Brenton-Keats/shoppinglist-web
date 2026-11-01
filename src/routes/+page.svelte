@@ -501,7 +501,7 @@
 	}
 </script>
 
-<div class="flex min-h-full flex-col">
+<div class="flex min-h-full flex-col" data-testid="list-page">
 	{#if listStore.loading}
 		<div class="flex flex-1 items-center justify-center py-16">
 			<LoadingSpinner />
@@ -525,6 +525,7 @@
 					type="text"
 					placeholder="Search or add items..."
 					bind:value={searchQuery}
+					data-testid="search-input"
 					class="flex-1 bg-transparent text-base text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-secondary)]/60"
 				/>
 				{#if searchQuery}
@@ -552,6 +553,7 @@
 			{#if isNewProduct && searchQuery.trim()}
 				<button
 					onclick={addNewProduct}
+					data-testid="add-new-product"
 					class="mb-3 flex w-full items-center gap-3 rounded-xl border border-dashed border-[var(--color-primary)] bg-[var(--color-primary)]/5 px-4 py-3 text-left active:bg-[var(--color-primary)]/10"
 				>
 					<div class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--color-primary)] text-white" style="min-height: auto; min-width: auto;">
@@ -586,7 +588,7 @@
 						</button>
 						{#if !isCollapsed}
 							{#each group.products as { product, onList } (product.id)}
-							<div class="flex items-center gap-1 rounded-lg transition-colors active:bg-[var(--color-surface)]">
+							<div class="flex items-center gap-1 rounded-lg transition-colors active:bg-[var(--color-surface)]" data-testid="product-row" data-product-name={product.name} data-on-list={onList}>
 								<button
 									onclick={() => toggleProduct(product)}
 									class="flex flex-1 items-center gap-3 px-2 py-2.5 text-left"

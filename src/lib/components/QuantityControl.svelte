@@ -45,6 +45,9 @@
 	<!-- Badge: its own distinct hit area; de-emphasised at 1. -->
 	<button
 		onclick={toggle}
+		data-testid="quantity-badge"
+		data-quantity={value}
+		data-muted={muted}
 		class="flex items-center justify-center rounded-lg px-3 text-base font-semibold {muted
 			? 'text-[var(--color-text-secondary)]/50'
 			: 'bg-[var(--color-primary)]/10 text-[var(--color-accent)] active:bg-[var(--color-primary)]/20'}"
@@ -65,10 +68,12 @@
 			class="absolute right-0 top-1/2 z-50 flex -translate-y-1/2 items-center gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-1 shadow-lg"
 			role="group"
 			aria-label="Adjust quantity"
+			data-testid="quantity-popover"
 		>
 			<button
 				onclick={decrement}
 				disabled={atFloor}
+				data-testid="quantity-decrement"
 				class="flex items-center justify-center rounded-lg text-[var(--color-text)] disabled:opacity-30 active:bg-[var(--color-surface)]"
 				style="min-height: 44px; min-width: 44px;"
 				aria-label="Decrease quantity"
@@ -78,11 +83,13 @@
 			<span
 				class="min-w-[2ch] text-center text-base font-semibold text-[var(--color-text)]"
 				aria-live="polite"
+				data-testid="quantity-value"
 			>
 				{value}
 			</span>
 			<button
 				onclick={increment}
+				data-testid="quantity-increment"
 				class="flex items-center justify-center rounded-lg text-[var(--color-text)] active:bg-[var(--color-surface)]"
 				style="min-height: 44px; min-width: 44px;"
 				aria-label="Increase quantity"
