@@ -15,18 +15,42 @@ import type {
  * GET /api/data — full dataset dump for initial sync.
  */
 export async function handleGetData(store: Store): Promise<ServerDataResponse> {
-  const [serverRevision, lists, sections, stores, products, listItems, settings] =
-    await Promise.all([
-      store.getServerRevision(),
-      store.getEntitiesByType('List'),
-      store.getEntitiesByType('Section'),
-      store.getEntitiesByType('Store'),
-      store.getEntitiesByType('Product'),
-      store.getEntitiesByType('ListItem'),
-      store.getSettings(),
-    ]);
+  const [
+    serverRevision,
+    lists,
+    sections,
+    stores,
+    products,
+    listItems,
+    meals,
+    mealProducts,
+    mealSelections,
+    settings,
+  ] = await Promise.all([
+    store.getServerRevision(),
+    store.getEntitiesByType('List'),
+    store.getEntitiesByType('Section'),
+    store.getEntitiesByType('Store'),
+    store.getEntitiesByType('Product'),
+    store.getEntitiesByType('ListItem'),
+    store.getEntitiesByType('Meal'),
+    store.getEntitiesByType('MealProduct'),
+    store.getEntitiesByType('MealSelection'),
+    store.getSettings(),
+  ]);
 
-  return { serverRevision, lists, sections, stores, products, listItems, settings };
+  return {
+    serverRevision,
+    lists,
+    sections,
+    stores,
+    products,
+    listItems,
+    meals,
+    mealProducts,
+    mealSelections,
+    settings,
+  };
 }
 
 /**

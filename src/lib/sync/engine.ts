@@ -8,7 +8,7 @@ import { fetchServerData, submitChanges } from './api';
 import { syncStateStore } from './state.svelte';
 import { resolveConflict, type ServerChange } from './conflict';
 import { UNAUTHENTICATED } from '$lib/auth';
-import type { BaseEntity } from '$lib/types';
+import type { BaseEntity, Meal, MealProduct, MealSelection } from '$lib/types';
 
 /**
  * Maps a caught sync error to the appropriate sync state. "Not signed in" is a
@@ -29,7 +29,10 @@ const ENTITY_TABLE_MAP: Record<string, string> = {
 	Section: 'sections',
 	Store: 'stores',
 	Product: 'products',
-	ListItem: 'listItems'
+	ListItem: 'listItems',
+	Meal: 'meals',
+	MealProduct: 'mealProducts',
+	MealSelection: 'mealSelections'
 };
 
 async function getSyncMeta(): Promise<{ lastRevision: number | null; deviceId: string }> {
@@ -228,25 +231,50 @@ export async function fetchInitialData(): Promise<boolean> {
 
 		await db.transaction(
 			'rw',
-			[db.lists, db.sections, db.stores, db.products, db.listItems, db.syncMeta],
+			[
+				db.lists,
+				db.sections,
+				db.stores,
+				db.products,
+				db.listItems,
+				db.meals,
+				db.mealProducts,
+				db.mealSelections,
+				db.syncMeta
+			],
 			async () => {
 				await db.lists.clear();
 				await db.sections.clear();
 				await db.stores.clear();
 				await db.products.clear();
 				await db.listItems.clear();
+				await db.meals.clear();
+				await db.mealProducts.clear();
+				await db.mealSelections.clear();
 
 				const lists = normalizeArray(data.lists);
 				const sections = normalizeArray(data.sections);
 				const stores = normalizeArray(data.stores);
 				const products = normalizeArray(data.products);
 				const listItems = normalizeArray(data.listItems);
+				const meals = normalizeArray(data.meals as unknown as Record<string, unknown>[]);
+				const mealProducts = normalizeArray(
+					data.mealProducts as unknown as Record<string, unknown>[]
+				);
+				const mealSelections = normalizeArray(
+					data.mealSelections as unknown as Record<string, unknown>[]
+				);
 
 				if (lists.length > 0) await db.lists.bulkPut(lists);
 				if (sections.length > 0) await db.sections.bulkPut(sections);
 				if (stores.length > 0) await db.stores.bulkPut(stores);
 				if (products.length > 0) await db.products.bulkPut(products);
 				if (listItems.length > 0) await db.listItems.bulkPut(listItems);
+				if (meals.length > 0) await db.meals.bulkPut(meals as unknown as Meal[]);
+				if (mealProducts.length > 0)
+					await db.mealProducts.bulkPut(mealProducts as unknown as MealProduct[]);
+				if (mealSelections.length > 0)
+					await db.mealSelections.bulkPut(mealSelections as unknown as MealSelection[]);
 
 				const now = new Date().toISOString();
 				await db.syncMeta.put({

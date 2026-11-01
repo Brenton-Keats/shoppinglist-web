@@ -25,10 +25,22 @@ export const ENTITY_COLUMNS: Record<EntityType, string[]> = {
     'quantity', 'unit', 'completed', 'completed_at', 'sort_order',
     'created_at', 'updated_at', 'deleted_at',
   ],
+  Meal: [
+    'id', 'name', 'sort_order', 'active', 'created_at', 'updated_at',
+    'deleted_at',
+  ],
+  MealProduct: [
+    'id', 'meal_id', 'product_id', 'name_snapshot', 'quantity', 'created_at',
+    'updated_at', 'deleted_at',
+  ],
+  MealSelection: [
+    'id', 'meal_id', 'list_id', 'created_at', 'updated_at', 'deleted_at',
+  ],
 };
 
 export const ENTITY_TYPES: EntityType[] = [
   'List', 'Section', 'Store', 'Product', 'ListItem',
+  'Meal', 'MealProduct', 'MealSelection',
 ];
 
 /**

@@ -62,13 +62,44 @@ export interface ListItem extends BaseEntity {
 	sort_order: string;
 }
 
+// Meals
+export interface Meal extends BaseEntity {
+	name: string;
+	/** Fractional-indexing key (lexicographically sortable). See utils/ordering. */
+	sort_order: string;
+	active: boolean;
+}
+
+// MealProducts (join row: a product with a quantity belonging to a meal)
+export interface MealProduct extends BaseEntity {
+	meal_id: string;
+	product_id: string;
+	/** Snapshot of product name so a deleted product doesn't break the meal. */
+	name_snapshot: string;
+	quantity: number;
+}
+
+// MealSelections (this meal is selected for this list / "week")
+export interface MealSelection extends BaseEntity {
+	meal_id: string;
+	list_id: string;
+}
+
 // Changes (for sync)
 export interface ChangeRecord {
 	id: string;
 	revision: number | null; // null until synced
 	timestamp: string;
 	device_id: string;
-	entity_type: 'List' | 'Section' | 'Store' | 'Product' | 'ListItem';
+	entity_type:
+		| 'List'
+		| 'Section'
+		| 'Store'
+		| 'Product'
+		| 'ListItem'
+		| 'Meal'
+		| 'MealProduct'
+		| 'MealSelection';
 	entity_id: string;
 	operation: 'create' | 'update' | 'delete';
 	payload: Record<string, unknown>;

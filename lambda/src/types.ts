@@ -5,7 +5,15 @@
  * client sends and expects.
  */
 
-export type EntityType = 'List' | 'Section' | 'Store' | 'Product' | 'ListItem';
+export type EntityType =
+  | 'List'
+  | 'Section'
+  | 'Store'
+  | 'Product'
+  | 'ListItem'
+  | 'Meal'
+  | 'MealProduct'
+  | 'MealSelection';
 
 export type Operation = 'create' | 'update' | 'delete';
 
@@ -54,6 +62,9 @@ export interface ServerDataResponse {
   stores: EntityRecord[];
   products: EntityRecord[];
   listItems: EntityRecord[];
+  meals: EntityRecord[];
+  mealProducts: EntityRecord[];
+  mealSelections: EntityRecord[];
   settings: SettingRecord[];
 }
 

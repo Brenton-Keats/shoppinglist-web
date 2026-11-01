@@ -4,12 +4,13 @@ import { db } from '$lib/db/database';
 import { compareSortKeys, planReorder } from '$lib/utils/ordering';
 import type { ChangeRecord, ListItem, Section, Store } from '$lib/types';
 
-type SortableTable = 'stores' | 'sections' | 'listItems';
+type SortableTable = 'stores' | 'sections' | 'listItems' | 'meals';
 
 const CHANGE_ENTITY: Record<SortableTable, ChangeRecord['entity_type']> = {
 	stores: 'Store',
 	sections: 'Section',
-	listItems: 'ListItem'
+	listItems: 'ListItem',
+	meals: 'Meal'
 };
 
 /**

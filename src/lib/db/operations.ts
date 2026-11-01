@@ -11,7 +11,10 @@ import type {
 	List,
 	Section,
 	Store,
-	ListItem
+	ListItem,
+	Meal,
+	MealProduct,
+	MealSelection
 } from '$lib/types';
 
 export async function createEntity<T extends BaseEntity>(
@@ -333,4 +336,83 @@ export async function softDeleteListItem(id: string): Promise<ListItem> {
 	const item = await softDeleteEntity<ListItem>('listItems', id);
 	await recordChange('ListItem', id, 'delete', {});
 	return item;
+}
+
+export async function createMeal(
+	data: Omit<Meal, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>
+): Promise<Meal> {
+	const meal = await createEntity<Meal>('meals', data);
+	await recordChange('Meal', meal.id, 'create', { ...data });
+	return meal;
+}
+
+/**
+ * Create a meal appended to the end, deriving sort_order atomically from the
+ * current max across all active meals (the meal group is "all active meals").
+ */
+export async function createMealAtEnd(
+	data: Omit<Meal, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'sort_order'>
+): Promise<Meal> {
+	return createEntityAtEnd<Meal>('meals', 'Meal', {
+		...data,
+		sort_order: ''
+	} as Omit<Meal, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>);
+}
+
+export async function updateMeal(id: string, updates: Partial<Meal>): Promise<Meal> {
+	const meal = await updateEntity<Meal>('meals', id, updates);
+	await recordChange('Meal', id, 'update', { ...updates });
+	return meal;
+}
+
+export async function softDeleteMeal(id: string): Promise<Meal> {
+	const meal = await softDeleteEntity<Meal>('meals', id);
+	await recordChange('Meal', id, 'delete', {});
+	return meal;
+}
+
+export async function createMealProduct(
+	data: Omit<MealProduct, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>
+): Promise<MealProduct> {
+	const mealProduct = await createEntity<MealProduct>('mealProducts', data);
+	await recordChange('MealProduct', mealProduct.id, 'create', { ...data });
+	return mealProduct;
+}
+
+export async function updateMealProduct(
+	id: string,
+	updates: Partial<MealProduct>
+): Promise<MealProduct> {
+	const mealProduct = await updateEntity<MealProduct>('mealProducts', id, updates);
+	await recordChange('MealProduct', id, 'update', { ...updates });
+	return mealProduct;
+}
+
+export async function softDeleteMealProduct(id: string): Promise<MealProduct> {
+	const mealProduct = await softDeleteEntity<MealProduct>('mealProducts', id);
+	await recordChange('MealProduct', id, 'delete', {});
+	return mealProduct;
+}
+
+export async function createMealSelection(
+	data: Omit<MealSelection, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>
+): Promise<MealSelection> {
+	const selection = await createEntity<MealSelection>('mealSelections', data);
+	await recordChange('MealSelection', selection.id, 'create', { ...data });
+	return selection;
+}
+
+export async function updateMealSelection(
+	id: string,
+	updates: Partial<MealSelection>
+): Promise<MealSelection> {
+	const selection = await updateEntity<MealSelection>('mealSelections', id, updates);
+	await recordChange('MealSelection', id, 'update', { ...updates });
+	return selection;
+}
+
+export async function softDeleteMealSelection(id: string): Promise<MealSelection> {
+	const selection = await softDeleteEntity<MealSelection>('mealSelections', id);
+	await recordChange('MealSelection', id, 'delete', {});
+	return selection;
 }

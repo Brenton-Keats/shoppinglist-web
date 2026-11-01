@@ -11,7 +11,17 @@
 
 import { ENV } from '$lib/config/env';
 import { resolveRequestAuth, UNAUTHENTICATED } from '$lib/auth';
-import type { List, Section, Store, Product, ListItem, Setting } from '$lib/types';
+import type {
+	List,
+	Section,
+	Store,
+	Product,
+	ListItem,
+	Meal,
+	MealProduct,
+	MealSelection,
+	Setting
+} from '$lib/types';
 
 const REQUEST_TIMEOUT_MS = 30000;
 
@@ -22,6 +32,9 @@ export interface ServerDataResponse {
 	stores: Store[];
 	products: Product[];
 	listItems: ListItem[];
+	meals: Meal[];
+	mealProducts: MealProduct[];
+	mealSelections: MealSelection[];
 	settings: Setting[];
 }
 
