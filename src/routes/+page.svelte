@@ -34,6 +34,11 @@
 	let allSections = $state<Section[]>([]);
 	let searchQuery = $state('');
 	let collapsedSections = $state<Set<string | null>>(new Set());
+	// Sentinel collapse keys for the two synthetic sections (Item 6). They share
+	// the SAME collapsedSections set + toggleSection as normal groups; the
+	// sentinels can never collide with a real section id (which is a UUID).
+	const MEAL_PLAN_KEY = '__meal_plan__';
+	const SUGGESTED_KEY = '__suggested__';
 
 	const sectionsArray = $derived(Array.from(listStore.sections.values()));
 
@@ -678,13 +683,23 @@
 			     aid) and hidden entirely when no meals are selected. -->
 			{#if !searchQuery.trim()}
 				{#if showMealPlan}
+					{@const mealPlanCollapsed = collapsedSections.has(MEAL_PLAN_KEY)}
 					<div class="mt-3 first:mt-0" data-testid="meal-plan-section">
-						<div class="flex w-full items-center gap-1 py-1.5">
+						<!-- Collapsible header: reuses the same collapsedSections/toggleSection
+						     mechanism and chevron as the normal product groups (Item 6). -->
+						<button
+							onclick={() => toggleSection(MEAL_PLAN_KEY)}
+							data-testid="meal-plan-collapse"
+							class="flex w-full items-center gap-1 py-1.5 text-left"
+							style="min-height: 32px; min-width: auto;"
+						>
+							<ChevronRight size={14} class="shrink-0 text-[var(--color-text-secondary)] transition-transform {mealPlanCollapsed ? '' : 'rotate-90'}" />
 							<span class="flex-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
 								Meal Plan
 							</span>
 							<span class="text-xs font-medium text-[var(--color-accent)]">{mealPlanRows.length}</span>
-						</div>
+						</button>
+						{#if !mealPlanCollapsed}
 						{#each mealPlanRows as row (row.meal_id)}
 							<div
 								class="flex items-center gap-1 rounded-lg"
@@ -706,17 +721,27 @@
 								</button>
 							</div>
 						{/each}
+						{/if}
 					</div>
 				{/if}
 
 				{#if showSuggested}
+					{@const suggestedCollapsed = collapsedSections.has(SUGGESTED_KEY)}
 					<div class="mt-3 first:mt-0" data-testid="suggested-section">
-						<div class="flex w-full items-center gap-1 py-1.5">
+						<!-- Collapsible header, same mechanism as above (Item 6). -->
+						<button
+							onclick={() => toggleSection(SUGGESTED_KEY)}
+							data-testid="suggested-collapse"
+							class="flex w-full items-center gap-1 py-1.5 text-left"
+							style="min-height: 32px; min-width: auto;"
+						>
+							<ChevronRight size={14} class="shrink-0 text-[var(--color-text-secondary)] transition-transform {suggestedCollapsed ? '' : 'rotate-90'}" />
 							<span class="flex-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
 								Suggested
 							</span>
 							<span class="text-xs font-medium text-[var(--color-accent)]">{suggestedRows.length}</span>
-						</div>
+						</button>
+						{#if !suggestedCollapsed}
 						{#each suggestedRows as row (row.product_id)}
 							<!-- Tap-to-add: adds the product to the active list with the
 							     summed meal quantity. Afterwards the curation rule drops it
@@ -737,6 +762,7 @@
 								</span>
 							</button>
 						{/each}
+						{/if}
 					</div>
 				{/if}
 			{/if}
