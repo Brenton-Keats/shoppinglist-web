@@ -37,6 +37,7 @@ variable "allowed_emails" {
     account the OAuth client authenticates — appropriate when the OAuth consent
     screen is restricted (e.g. Testing-mode test users). Set specific emails to
     further restrict access regardless of the consent-screen configuration.
+    See also, repo variable ALLOWED_EMAILS.
   EOT
   type        = list(string)
   default     = []
