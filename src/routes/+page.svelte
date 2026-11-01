@@ -7,10 +7,10 @@
 	import { preferencesStore } from '$lib/stores/preferences.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import { db } from '$lib/db/database';
-	import { getActiveEntities, createList, updateProduct, updateList, createSectionAtEnd, createStoreAtEnd, updateListItem } from '$lib/db/operations';
+	import { getActiveEntities, createList, updateProduct, updateList, createSectionAtEnd, createStoreAtEnd, updateListItem, moveEntityToGroupEnd } from '$lib/db/operations';
 	import { compareSortKeys, sortKeyAfter, planReorder } from '$lib/utils/ordering';
 	import { toastStore } from '$lib/stores/toast.svelte';
-	import type { Product, Section, Store, List } from '$lib/types';
+	import type { Product, Section, Store, List, ListItem } from '$lib/types';
 
 	uiStore.setHeaderTitle('');
 	uiStore.setShowBackButton(false);
@@ -378,42 +378,60 @@
 			return;
 		}
 
+		const productId = editingProduct.id;
 		const newSectionId = editSectionId || null;
 		const newStoreId = editStoreId || null;
+		const sectionChanged = newSectionId !== (editingProduct.default_section_id || null);
 
-		// If section changed, generate a sort key for the end of the new section
-		let newSortOrder = editingProduct.sort_order;
-		if (newSectionId !== (editingProduct.default_section_id || null)) {
-			const productsInNewSection = allProducts
-				.filter(p => (p.default_section_id || null) === newSectionId && p.id !== editingProduct!.id)
-				.sort((a, b) => compareSortKeys(a.sort_order, b.sort_order));
-			const lastKey = productsInNewSection.length > 0
-				? productsInNewSection[productsInNewSection.length - 1].sort_order
-				: null;
-			newSortOrder = sortKeyAfter(lastKey);
-		}
+		const listItem = listStore.items.find(i => i.product_id === productId);
 
-		// Update the product name + defaults. name_snapshot on existing list items
-		// is intentionally left frozen — renaming a product does not rewrite history.
-		await updateProduct(editingProduct.id, {
-			name,
-			default_section_id: newSectionId,
-			default_store_id: newStoreId,
-			sort_order: newSortOrder
-		});
+		if (sectionChanged) {
+			// Moving the product into a different section: append it to the END of
+			// the destination section via the shared atomic group-max path, so the
+			// new key is derived from the live group max inside a transaction and
+			// cannot collide with a drifted/duplicate key in the target section.
+			await moveEntityToGroupEnd<Product>(
+				'products',
+				'Product',
+				productId,
+				p => (p.default_section_id ?? null) === newSectionId,
+				{ name, default_section_id: newSectionId, default_store_id: newStoreId }
+			);
 
-		// Also update any existing ListItem for this product on the active list
-		const { updateListItem } = await import('$lib/db/operations');
-		const listItem = listStore.items.find(i => i.product_id === editingProduct!.id);
-		if (listItem) {
-			await updateListItem(listItem.id, {
-				section_id: newSectionId,
-				store_id: newStoreId,
-				sort_order: newSortOrder
+			// Mirror the move onto the matching ListItem: append it to the end of
+			// its own group (items sharing this list) through the same shared op,
+			// updating its section/store. name_snapshot stays frozen — renaming a
+			// product does not rewrite list history.
+			if (listItem) {
+				await moveEntityToGroupEnd<ListItem>(
+					'listItems',
+					'ListItem',
+					listItem.id,
+					i => i.list_id === listItem.list_id,
+					{ section_id: newSectionId, store_id: newStoreId }
+				);
+			}
+		} else {
+			// Section unchanged: SAVE-ON-SUBMIT must preserve the product's CURRENT
+			// persisted position (including any reorder done with the up/down
+			// buttons while the sheet was open). Omit sort_order from the update so
+			// the DB keeps whatever the reorder wrote — never stamp back the stale
+			// key captured when the sheet opened.
+			await updateProduct(productId, {
+				name,
+				default_section_id: newSectionId,
+				default_store_id: newStoreId
 			});
-			await listStore.loadActiveList();
+
+			if (listItem) {
+				await updateListItem(listItem.id, {
+					section_id: newSectionId,
+					store_id: newStoreId
+				});
+			}
 		}
 
+		if (listItem) await listStore.loadActiveList();
 		await loadProducts();
 		closeEditSheet();
 	}

@@ -32,6 +32,29 @@ export async function createEntity<T extends BaseEntity>(
 }
 
 /**
+ * Find the MAX sort_order among the active rows of `table` that fall in a group
+ * (by `compareSortKeys`), returning null for an empty group. Shared by the
+ * atomic "append to end" paths so that create (createEntityAtEnd) and move
+ * (moveEntityToGroupEnd) derive the destination key the same way. MUST be called
+ * inside a Dexie `rw` transaction that includes `tbl` so the read and the
+ * subsequent write are atomic.
+ */
+async function groupMaxSortKey<T extends BaseEntity & { sort_order: string }>(
+	tbl: Table<T, string>,
+	inGroup: (e: T) => boolean,
+	excludeId?: string
+): Promise<string | null> {
+	const all = await tbl.toArray();
+	return all
+		.filter((e) => !isSoftDeleted(e) && e.id !== excludeId && inGroup(e))
+		.reduce<string | null>((max, e) => {
+			const key = e.sort_order ?? null;
+			if (max === null) return key;
+			return compareSortKeys(key, max) > 0 ? key : max;
+		}, null);
+}
+
+/**
  * Create an entity appended to the END of its group, deriving its sort_order
  * from the MAX existing key in that group (by compareSortKeys) rather than from
  * a caller-supplied array position. The max read and the row write happen in a
@@ -51,14 +74,7 @@ export async function createEntityAtEnd<T extends BaseEntity & { sort_order: str
 	const tbl = db.table<T>(table) as Table<T, string>;
 
 	return db.transaction('rw', tbl, db.changes, async () => {
-		const all = await tbl.toArray();
-		const maxKey = all
-			.filter((e) => !isSoftDeleted(e) && inGroup(e))
-			.reduce<string | null>((max, e) => {
-				const key = e.sort_order ?? null;
-				if (max === null) return key;
-				return compareSortKeys(key, max) > 0 ? key : max;
-			}, null);
+		const maxKey = await groupMaxSortKey(tbl, inGroup);
 
 		const timestamp = now();
 		const newEntity = {
@@ -76,6 +92,41 @@ export async function createEntityAtEnd<T extends BaseEntity & { sort_order: str
 			sort_order: newEntity.sort_order
 		});
 		return newEntity;
+	});
+}
+
+/**
+ * Move an EXISTING row to the END of a (possibly different) group, deriving its
+ * new sort_order atomically from the current group MAX — the same hardened path
+ * createEntityAtEnd uses for creates, so no caller has to hand-roll
+ * `sortKeyAfter(lastKey)` against an array position. The group max is read and
+ * the row is written inside a single Dexie `rw` transaction, so the derived key
+ * is taken from the live DB state and cannot collide with a concurrently-added
+ * sibling or with a drifted/duplicate key elsewhere in the group.
+ *
+ * `inGroup` selects the destination sibling set (active rows only); the moving
+ * row is excluded from the max so re-appending within its current group still
+ * lands it after its remaining siblings. `extraUpdates` is merged into the row
+ * update (e.g. the section/store the move is part of) and recorded for sync.
+ * Returns the row's resolved new sort_order.
+ */
+export async function moveEntityToGroupEnd<T extends BaseEntity & { sort_order: string }>(
+	table: string,
+	changeEntity: ChangeRecord['entity_type'],
+	id: string,
+	inGroup: (e: T) => boolean,
+	extraUpdates: Partial<T> = {}
+): Promise<string> {
+	const tbl = db.table<T>(table) as Table<T, string>;
+
+	return db.transaction('rw', tbl, db.changes, async () => {
+		const maxKey = await groupMaxSortKey(tbl, inGroup, id);
+		const newSortOrder = sortKeyAfter(maxKey);
+
+		const updates = { ...extraUpdates, sort_order: newSortOrder } as Partial<T>;
+		await updateEntity<T>(table, id, updates);
+		await recordChange(changeEntity, id, 'update', { ...updates });
+		return newSortOrder;
 	});
 }
 
