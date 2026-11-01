@@ -6,9 +6,9 @@ import type { AuthContext, AuthResult, Authenticator } from './auth';
  *
  * Verifies an RS256 JWT issued by Google Identity Services against Google's
  * published JWKS and checks the standard claims (iss/aud/exp). An email
- * allowlist is optional: with none, any account the OAuth client authenticates
- * is accepted (access is bounded by the client's authorized origins and consent
- * screen). Used by the Lambda when GOOGLE_CLIENT_ID is configured.
+ * allowlist is REQUIRED: the verification fails closed when the allowlist is
+ * empty/misconfigured, so only explicitly-listed verified emails are accepted.
+ * Used by the Lambda when GOOGLE_CLIENT_ID is configured.
  */
 
 const GOOGLE_ISSUERS = new Set(['accounts.google.com', 'https://accounts.google.com']);
@@ -146,11 +146,13 @@ export async function verifyGoogleToken(token: string, opts: VerifyOptions): Pro
 
   const email = typeof payload.email === 'string' ? payload.email.toLowerCase() : undefined;
 
-  // No allowlist configured: accept any account the OAuth client authenticates.
-  // Access is bounded by the OAuth client itself — authorized JavaScript origins
-  // and the consent screen's user restriction (e.g. Testing-mode test users).
+  // FAIL CLOSED (Item 11): with Google auth in effect, an empty/misconfigured
+  // allowlist must DENY all requests rather than accept any authenticated
+  // account. A valid OAuth identity is necessary but not sufficient — the
+  // identity email must be explicitly allowlisted. Set ALLOWED_EMAILS in the
+  // deployment config to grant access.
   if (opts.allowedEmails.length === 0) {
-    return { ok: true, email };
+    return { ok: false, error: 'allowlist_empty' };
   }
 
   // Allowlist configured: require a verified email that is on the list.
@@ -165,8 +167,8 @@ export async function verifyGoogleToken(token: string, opts: VerifyOptions): Pro
 
 /**
  * Authenticator that validates a Google ID token from the Authorization header.
- * With no allowlist, any account the OAuth client authenticates is accepted;
- * supply an allowlist to further restrict to specific emails.
+ * The allowlist is required: with no allowlist configured the authenticator
+ * fails closed (denies all), so access is restricted to explicitly-listed emails.
  */
 export function createGoogleAuthenticator(config: {
   clientId: string;

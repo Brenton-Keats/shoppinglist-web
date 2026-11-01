@@ -77,18 +77,25 @@ describe('verifyGoogleToken', () => {
     expect(res.ok).toBe(false);
   });
 
-  it('accepts any authenticated account when no allowlist is configured', async () => {
+  // Item 11 — SECURITY: fail closed when the allowlist is empty/misconfigured.
+  // Previously an empty allowlist meant "accept any authenticated account" (open);
+  // Google-auth mode must now DENY all requests unless the identity email is listed.
+  it('rejects an otherwise-valid account when the allowlist is empty (fail closed)', async () => {
     const res = await verifyGoogleToken(signJwt(validPayload()), { ...base, allowedEmails: [] });
-    expect(res.ok).toBe(true);
-    expect(res.email).toBe('user@example.com');
+    expect(res).toMatchObject({ ok: false, error: 'allowlist_empty' });
   });
 
-  it('accepts a non-listed account when no allowlist is configured', async () => {
+  it('rejects a non-listed account when the allowlist is empty (fail closed)', async () => {
     const res = await verifyGoogleToken(
       signJwt({ ...validPayload(), email: 'someone-else@example.com' }),
       { ...base, allowedEmails: [] },
     );
-    expect(res.ok).toBe(true);
+    expect(res).toMatchObject({ ok: false, error: 'allowlist_empty' });
+  });
+
+  it('accepts a verified email that is on the allowlist', async () => {
+    const res = await verifyGoogleToken(signJwt(validPayload()), base);
+    expect(res).toMatchObject({ ok: true, email: 'user@example.com' });
   });
 
   it('still rejects a wrong audience even with no allowlist', async () => {
