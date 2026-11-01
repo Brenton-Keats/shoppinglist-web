@@ -87,6 +87,22 @@ class SyncStore {
 		}
 	}
 
+	/**
+	 * Recompute the pending-sync count from the SINGLE source of truth: the
+	 * boolean-consistent `getPendingChanges()` path (synced === false). This is
+	 * the only correct way to count — `db.changes.where('synced').equals(0)`
+	 * (integer) never matches the boolean `false` that `recordChange` stores, so
+	 * it silently returned 0 and the badge never reflected meal/list writes
+	 * (Item 1). All stores call THIS after a write.
+	 *
+	 * It also refreshes `syncStateStore` (the reactive source the $effect.root
+	 * below mirrors onto this store), so the two can never disagree.
+	 */
+	async refreshPendingCount(): Promise<void> {
+		await syncStateStore.refreshPendingCount();
+		this.setPendingCount(syncStateStore.pendingCount);
+	}
+
 	setError(error: string) {
 		this.error = error;
 		this.status = 'error';

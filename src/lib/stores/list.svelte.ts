@@ -107,7 +107,7 @@ class ListStore {
 		});
 
 		this.items = [...this.items, item];
-		syncStore.setPendingCount(await db.changes.where('synced').equals(0).count());
+		await syncStore.refreshPendingCount();
 	}
 
 	async addNewProductAndItem(
@@ -139,13 +139,13 @@ class ListStore {
 		});
 
 		this.items = [...this.items, item];
-		syncStore.setPendingCount(await db.changes.where('synced').equals(0).count());
+		await syncStore.refreshPendingCount();
 	}
 
 	async removeItem(itemId: string): Promise<void> {
 		await softDeleteListItem(itemId);
 		this.items = this.items.filter((i) => i.id !== itemId);
-		syncStore.setPendingCount(await db.changes.where('synced').equals(0).count());
+		await syncStore.refreshPendingCount();
 	}
 
 	async toggleItem(itemId: string): Promise<void> {
@@ -160,7 +160,7 @@ class ListStore {
 		this.items = this.items.map((i) =>
 			i.id === itemId ? { ...i, completed, completed_at } : i
 		);
-		syncStore.setPendingCount(await db.changes.where('synced').equals(0).count());
+		await syncStore.refreshPendingCount();
 	}
 
 	/**
@@ -179,7 +179,7 @@ class ListStore {
 		try {
 			await updateListItem(itemId, { quantity: next });
 			this.items = this.items.map((i) => (i.id === itemId ? { ...i, quantity: next } : i));
-			syncStore.setPendingCount(await db.changes.where('synced').equals(0).count());
+			await syncStore.refreshPendingCount();
 		} catch (err) {
 			console.error('Failed to set item quantity:', err);
 			toastStore.error('Could not update quantity. Please try again.');

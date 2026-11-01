@@ -111,7 +111,7 @@ class MealStore {
 	}
 
 	private async refreshPending(): Promise<void> {
-		syncStore.setPendingCount(await db.changes.where('synced').equals(0).count());
+		await syncStore.refreshPendingCount();
 	}
 
 	/** Load all active meals (sorted by sort_order) and the active product catalogue. */

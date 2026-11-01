@@ -94,7 +94,10 @@ export async function markChangesSynced(changeIds: string[], revision: number): 
 }
 
 export async function removeSyncedChanges(): Promise<number> {
-	const syncedChanges = await db.changes.where('synced').equals(1).toArray();
+	// `synced` is stored as a BOOLEAN (see recordChange / markChangesSynced), so
+	// `.where('synced').equals(1)` (integer) never matched — the same class of
+	// bug as the pending-count query (Item 1). Filter on the boolean directly.
+	const syncedChanges = await db.changes.filter((c) => c.synced === true).toArray();
 	const ids = syncedChanges.map((c) => c.id);
 	await db.changes.bulkDelete(ids);
 	return ids.length;
