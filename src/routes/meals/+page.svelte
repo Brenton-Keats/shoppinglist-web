@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { fly, fade } from 'svelte/transition';
-	import { Plus, Pencil, Trash2, X, Check, ChevronRight, Search, UtensilsCrossed } from '@lucide/svelte';
+	import { Plus, Pencil, Trash2, X, Check, ChevronRight, Search, UtensilsCrossed, Star, CalendarCheck } from '@lucide/svelte';
 	import { mealStore } from '$lib/stores/meal.svelte';
 	import { listStore } from '$lib/stores/list.svelte';
 	import { uiStore } from '$lib/stores/ui.svelte';
@@ -60,6 +60,23 @@
 		if (!activeList) return;
 		await mealStore.toggleSelection(mealId, activeList.id);
 	}
+
+	// Independent flag toggles. Each writes ONLY its own flag (independence); the
+	// is_usual toggle additionally auto-selects the meal for the active list so a
+	// freshly-marked usual behaves immediately, but never touches in_meal_plan.
+	async function toggleUsual(meal: Meal) {
+		await mealStore.setUsual(meal.id, !meal.is_usual, activeList?.id ?? null);
+	}
+
+	async function toggleInMealPlan(meal: Meal) {
+		await mealStore.setInMealPlan(meal.id, !meal.in_meal_plan);
+	}
+
+	// Split meals into non-usual (above the divider) and usual (below it). Each
+	// group preserves the store's sort_order. The divider only renders when there
+	// is at least one usual to separate.
+	const normalMeals = $derived(mealStore.meals.filter((m) => !m.is_usual));
+	const usualMeals = $derived(mealStore.meals.filter((m) => m.is_usual));
 
 	async function addMeal() {
 		const name = newMealName.trim();
@@ -185,13 +202,43 @@
 					description="Add a meal above, then add the products it needs."
 				/>
 			{:else}
-				{#each mealStore.meals as meal (meal.id)}
+				<!-- Non-usual meals first. -->
+				{#each normalMeals as meal (meal.id)}
+					{@render mealCard(meal)}
+				{/each}
+
+				<!-- Divider, then the usuals below it (only when any usual exists). -->
+				{#if usualMeals.length > 0}
+					<div class="mt-6 mb-1 flex items-center gap-2" data-testid="usuals-divider">
+						<div class="h-px flex-1 bg-[var(--color-border)]"></div>
+						<span class="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
+							<Star size={12} class="text-[var(--color-accent)]" />
+							The Usuals
+						</span>
+						<div class="h-px flex-1 bg-[var(--color-border)]"></div>
+					</div>
+					{#each usualMeals as meal (meal.id)}
+						{@render mealCard(meal)}
+					{/each}
+				{/if}
+			{/if}
+		</div>
+	{/if}
+</div>
+
+<!-- Reusable meal card: used for both the non-usual group and the usuals group
+     below the divider. Both groups are fully editable (products/quantities,
+     rename, delete) and keep the per-list select toggle (which, for a usual, is
+     the opt-out-for-this-list control, defaulted on via auto-selection). -->
+{#snippet mealCard(meal: Meal)}
 					{@const isExpanded = expandedMealId === meal.id}
 					{@const mealProducts = mealStore.getMealProducts(meal.id)}
 					<div
 						class="mt-3 overflow-hidden rounded-xl bg-[var(--color-surface)] ring-1 ring-[var(--color-border)] first:mt-0"
 						data-testid="meal-row"
 						data-meal-name={meal.name}
+						data-usual={meal.is_usual ? 'true' : 'false'}
+						data-in-meal-plan={meal.in_meal_plan ? 'true' : 'false'}
 					>
 						{#if editingMealId === meal.id}
 							<div class="flex w-full items-center gap-2 px-3 py-3">
@@ -263,6 +310,42 @@
 										<span>Add</span>
 									{/if}
 								</button>
+								<!-- "Usual" flag toggle (is_usual). Writes ONLY is_usual (+ auto-select
+								     side effect); never touches in_meal_plan. Marking a meal usual
+								     moves it below the divider. -->
+								<button
+									onclick={() => toggleUsual(meal)}
+									data-testid="meal-usual-toggle"
+									data-usual={meal.is_usual ? 'true' : 'false'}
+									aria-pressed={meal.is_usual}
+									title={meal.is_usual ? 'A usual (auto-added to new lists)' : 'Mark as a usual'}
+									class="flex shrink-0 items-center justify-center rounded-full p-2 transition-colors active:bg-[var(--color-border)] {meal.is_usual
+										? 'text-[var(--color-accent)]'
+										: 'text-[var(--color-text-secondary)]'}"
+									style="min-height: 36px; min-width: 36px;"
+									aria-label={meal.is_usual ? `Unmark ${meal.name} as a usual` : `Mark ${meal.name} as a usual`}
+								>
+									<Star size={14} fill={meal.is_usual ? 'currentColor' : 'none'} />
+								</button>
+								<!-- "In meal plan" flag toggle (in_meal_plan). Writes ONLY
+								     in_meal_plan; never touches is_usual. Pure display filter for the
+								     Meal Plan section — does NOT affect Suggested contributions. -->
+								<button
+									onclick={() => toggleInMealPlan(meal)}
+									data-testid="meal-plan-toggle"
+									data-in-meal-plan={meal.in_meal_plan ? 'true' : 'false'}
+									aria-pressed={meal.in_meal_plan}
+									title={meal.in_meal_plan ? 'Shown in the Meal Plan section' : 'Hidden from the Meal Plan section'}
+									class="flex shrink-0 items-center justify-center rounded-full p-2 transition-colors active:bg-[var(--color-border)] {meal.in_meal_plan
+										? 'text-[var(--color-accent)]'
+										: 'text-[var(--color-text-secondary)]/50'}"
+									style="min-height: 36px; min-width: 36px;"
+									aria-label={meal.in_meal_plan
+										? `Hide ${meal.name} from the meal plan`
+										: `Show ${meal.name} in the meal plan`}
+								>
+									<CalendarCheck size={14} />
+								</button>
 								<button
 									onclick={() => startRename(meal)}
 									class="flex shrink-0 items-center justify-center rounded-full p-2 text-[var(--color-text-secondary)] active:bg-[var(--color-border)]"
@@ -328,11 +411,7 @@
 							</div>
 						{/if}
 					</div>
-				{/each}
-			{/if}
-		</div>
-	{/if}
-</div>
+{/snippet}
 
 <!-- Delete confirmation -->
 {#if confirmDeleteId}

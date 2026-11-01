@@ -49,7 +49,12 @@ describe('meals phase 0 — client round-trip', () => {
 	}
 
 	it('creates Meal + MealProduct + MealSelection and re-hydrates them intact', async () => {
-		const meal = await createMealAtEnd({ name: 'Taco Night', active: true });
+		const meal = await createMealAtEnd({
+			name: 'Taco Night',
+			active: true,
+			is_usual: false,
+			in_meal_plan: true
+		});
 		const mealProduct = await createMealProduct({
 			meal_id: meal.id,
 			product_id: 'prod-1',
@@ -99,7 +104,12 @@ describe('meals phase 0 — client round-trip', () => {
 	});
 
 	it('coerces a numeric-string quantity to a number on the ingestion boundary', async () => {
-		const meal = await createMealAtEnd({ name: 'Pasta', active: true });
+		const meal = await createMealAtEnd({
+			name: 'Pasta',
+			active: true,
+			is_usual: false,
+			in_meal_plan: true
+		});
 		await createMealProduct({
 			meal_id: meal.id,
 			product_id: 'prod-2',

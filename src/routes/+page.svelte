@@ -80,8 +80,11 @@
 		};
 	});
 
-	// Adapt the Phase-2 outputs into the two synthetic view sections.
-	const mealPlanRows = $derived(buildMealPlanRows(mealStore.selectedMeals));
+	// Adapt the Phase-2 outputs into the two synthetic view sections. The Meal
+	// Plan section uses `mealPlanMeals` (selected meals FILTERED to
+	// in_meal_plan=true) — a pure display filter that does NOT touch Suggested,
+	// which still derives from all selections via computeSuggestedForList.
+	const mealPlanRows = $derived(buildMealPlanRows(mealStore.mealPlanMeals));
 	const suggestedRows = $derived(
 		buildSuggestedRows(suggestedProducts, (id) => listStore.products.get(id)?.name)
 	);
@@ -184,6 +187,11 @@
 			});
 			listStore.activeList = list;
 			await listStore.loadListData(list.id);
+			// Genuinely-new list → auto-select the usuals (see ensureUsualsSelected
+			// trigger policy). Done only on creation, never on adopting an existing
+			// list, so a per-list opt-out of a usual is never resurrected.
+			await mealStore.ensureUsualsSelected(list.id);
+			await mealStore.loadSelections(list.id);
 		}
 	}
 
@@ -279,6 +287,9 @@
 
 		listStore.activeList = list;
 		await listStore.loadListData(list.id);
+		// New list → auto-select the usuals (trigger policy: creation only).
+		await mealStore.ensureUsualsSelected(list.id);
+		await mealStore.loadSelections(list.id);
 		closeListSheet();
 	}
 
@@ -307,6 +318,9 @@
 
 		listStore.activeList = list;
 		await listStore.loadListData(list.id);
+		// New list → auto-select the usuals (trigger policy: creation only).
+		await mealStore.ensureUsualsSelected(list.id);
+		await mealStore.loadSelections(list.id);
 		closeListSheet();
 	}
 

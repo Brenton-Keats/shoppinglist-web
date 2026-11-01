@@ -33,8 +33,11 @@ const NULLABLE_FIELDS = new Set([
 	'quantity'
 ]);
 
-/** Fields that should be boolean */
-const BOOLEAN_FIELDS = new Set(['active', 'completed', 'synced']);
+/** Fields that should be boolean. `is_usual`/`in_meal_plan` are the two
+ * independent Meal flags (see types.ts Meal). Coercion here only runs when the
+ * field is PRESENT on the record; defaults for legacy rows missing the field
+ * are applied on read in meal.svelte.ts (`normalizeMeal`). */
+const BOOLEAN_FIELDS = new Set(['active', 'completed', 'synced', 'is_usual', 'in_meal_plan']);
 
 /** Fields that should be number. sort_order is intentionally excluded: it is a
  * fractional-indexing STRING key (see utils/ordering), not a number. */

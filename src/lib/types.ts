@@ -68,6 +68,28 @@ export interface Meal extends BaseEntity {
 	/** Fractional-indexing key (lexicographically sortable). See utils/ordering. */
 	sort_order: string;
 	active: boolean;
+	/**
+	 * "The usuals": a meal that is AUTO-SELECTED for every newly created list, so
+	 * its products always flow into Suggested without the user picking it each
+	 * list. Remains opt-out-able per list (the per-list select toggle is kept and
+	 * simply defaults on). Default for new meals: false.
+	 *
+	 * INDEPENDENT of `in_meal_plan` — changing one never changes the other.
+	 * Legacy rows missing this field are read as `false` (see defaults-on-read in
+	 * meal.svelte.ts `normalizeMeal`).
+	 */
+	is_usual: boolean;
+	/**
+	 * Whether this meal appears in the "Meal Plan" section when selected. PURE
+	 * DISPLAY FILTER for Meal Plan ONLY — it does NOT affect Suggested
+	 * contributions: a selected meal with `in_meal_plan=false` still contributes
+	 * its products to Suggested exactly as before, it is just hidden from the
+	 * Meal Plan list. Default for new meals: true (a normal planned meal).
+	 *
+	 * INDEPENDENT of `is_usual` — changing one never changes the other. Legacy
+	 * rows missing this field are read as `true` (see defaults-on-read).
+	 */
+	in_meal_plan: boolean;
 }
 
 // MealProducts (join row: a product with a quantity belonging to a meal)

@@ -110,6 +110,140 @@ describe('meals phase 0 — server round-trip', () => {
     expect(mealSelection.deleted_at).toBeNull();
   });
 
+  it('carries the independent Meal flags is_usual + in_meal_plan through apply+fetch (whitelist gate)', async () => {
+    const store = new InMemoryStore();
+
+    // A usual meal that is hidden from the Meal Plan: is_usual=true,
+    // in_meal_plan=false. If either column is missing from ENTITY_COLUMNS.Meal
+    // the field is silently dropped and the assertions below fail.
+    await handlePostSync(store, {
+      deviceId: 'dev-a',
+      baseRevision: 0,
+      changes: [
+        change({
+          entityType: 'Meal',
+          entityId: 'meal-usual',
+          operation: 'create',
+          data: {
+            name: 'Weekly Staples',
+            sort_order: 'a1',
+            active: true,
+            is_usual: true,
+            in_meal_plan: false,
+            updated_at: UPDATED,
+          },
+        }),
+        // A normal planned meal carrying the opposite flag values.
+        change({
+          entityType: 'Meal',
+          entityId: 'meal-normal',
+          operation: 'create',
+          data: {
+            name: 'Taco Night',
+            sort_order: 'a2',
+            active: true,
+            is_usual: false,
+            in_meal_plan: true,
+            updated_at: UPDATED,
+          },
+        }),
+      ],
+    });
+
+    const data = await handleGetData(store);
+    const usual = data.meals.find((m) => m.id === 'meal-usual')!;
+    const normal = data.meals.find((m) => m.id === 'meal-normal')!;
+
+    // Both flags survive the whitelist AND are coerced to real booleans.
+    expect(usual.is_usual).toBe(true);
+    expect(usual.in_meal_plan).toBe(false);
+    expect(typeof usual.is_usual).toBe('boolean');
+    expect(typeof usual.in_meal_plan).toBe('boolean');
+
+    expect(normal.is_usual).toBe(false);
+    expect(normal.in_meal_plan).toBe(true);
+  });
+
+  it('coerces string/number flag values to booleans and round-trips them (BOOLEAN_FIELDS gate)', async () => {
+    const store = new InMemoryStore();
+
+    await handlePostSync(store, {
+      deviceId: 'dev-a',
+      baseRevision: 0,
+      changes: [
+        change({
+          entityType: 'Meal',
+          entityId: 'meal-coerce',
+          operation: 'create',
+          // Client sends non-canonical types; server must coerce to booleans.
+          data: {
+            name: 'Coerce Me',
+            sort_order: 'a1',
+            active: true,
+            is_usual: 'true',
+            in_meal_plan: 0,
+            updated_at: UPDATED,
+          },
+        }),
+      ],
+    });
+
+    const data = await handleGetData(store);
+    const meal = data.meals.find((m) => m.id === 'meal-coerce')!;
+    expect(meal.is_usual).toBe(true);
+    expect(meal.in_meal_plan).toBe(false);
+    expect(typeof meal.is_usual).toBe('boolean');
+    expect(typeof meal.in_meal_plan).toBe('boolean');
+  });
+
+  it('updates a Meal flag independently through the apply path (in_meal_plan toggled, is_usual preserved)', async () => {
+    const store = new InMemoryStore();
+
+    await handlePostSync(store, {
+      deviceId: 'dev-a',
+      baseRevision: 0,
+      changes: [
+        change({
+          entityType: 'Meal',
+          entityId: 'meal-upd',
+          operation: 'create',
+          data: {
+            name: 'Toggle',
+            sort_order: 'a1',
+            active: true,
+            is_usual: true,
+            in_meal_plan: true,
+            updated_at: UPDATED,
+          },
+        }),
+      ],
+    });
+
+    // Update ONLY in_meal_plan — is_usual must be carried over unchanged. The
+    // server stamps created rows with its own wall-clock `updated_at`, so the
+    // update must carry a timestamp the server will see as strictly newer under
+    // last-write-wins. Use a far-future timestamp to beat the server clock.
+    const FUTURE = '2099-01-01T00:00:00.000Z';
+    await handlePostSync(store, {
+      deviceId: 'dev-a',
+      baseRevision: 1,
+      changes: [
+        change({
+          entityType: 'Meal',
+          entityId: 'meal-upd',
+          operation: 'update',
+          timestamp: FUTURE,
+          data: { in_meal_plan: false, updated_at: FUTURE },
+        }),
+      ],
+    });
+
+    const data = await handleGetData(store);
+    const meal = data.meals.find((m) => m.id === 'meal-upd')!;
+    expect(meal.in_meal_plan).toBe(false);
+    expect(meal.is_usual).toBe(true); // preserved across a partial update
+  });
+
   it('round-trips meal entities through the change log payload (second device pull)', async () => {
     const store = new InMemoryStore();
 

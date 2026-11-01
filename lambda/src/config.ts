@@ -26,8 +26,8 @@ export const ENTITY_COLUMNS: Record<EntityType, string[]> = {
     'created_at', 'updated_at', 'deleted_at',
   ],
   Meal: [
-    'id', 'name', 'sort_order', 'active', 'created_at', 'updated_at',
-    'deleted_at',
+    'id', 'name', 'sort_order', 'active', 'is_usual', 'in_meal_plan',
+    'created_at', 'updated_at', 'deleted_at',
   ],
   MealProduct: [
     'id', 'meal_id', 'product_id', 'name_snapshot', 'quantity', 'created_at',
@@ -63,7 +63,12 @@ export const DATE_FIELDS = new Set<string>([
   'deleted_at',
 ]);
 
-export const BOOLEAN_FIELDS = new Set<string>(['active', 'completed']);
+export const BOOLEAN_FIELDS = new Set<string>([
+  'active',
+  'completed',
+  'is_usual',
+  'in_meal_plan',
+]);
 
 export const NUMBER_FIELDS = new Set<string>(['quantity']);
 
