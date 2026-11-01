@@ -5,11 +5,6 @@ export const APP_CONFIG = {
 	DEFAULT_SYNC_INTERVAL: 30, // seconds
 	DEFAULT_SYNC_MODE: 'auto' as const,
 
-	// Suggestion defaults
-	SUGGESTION_WINDOW: 4, // number of recent lists to consider
-	STRONG_SUGGESTION_THRESHOLD: 0.75, // 75%
-	SUGGESTION_THRESHOLD: 0.50, // 50%
-
 	// UI defaults
 	DEFAULT_VIEW_MODE: 'SECTION_STORE' as ViewMode,
 
