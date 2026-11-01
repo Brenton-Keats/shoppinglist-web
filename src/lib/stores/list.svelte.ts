@@ -12,6 +12,8 @@ import {
 	getActiveEntities
 } from '$lib/db/operations';
 import { syncStore } from './sync.svelte';
+import { toastStore } from './toast.svelte';
+import { adjustQuantity, clampQuantity, effectiveQuantity } from '$lib/utils/quantity';
 
 export interface ListState {
 	activeList: List | null;
@@ -95,7 +97,7 @@ class ListStore {
 			name_snapshot: resolvedProduct.name,
 			section_id: sectionId ?? resolvedProduct.default_section_id ?? null,
 			store_id: storeId ?? resolvedProduct.default_store_id ?? null,
-			quantity: null,
+			quantity: 1,
 			unit: null,
 			completed: false,
 			completed_at: null
@@ -127,7 +129,7 @@ class ListStore {
 			name_snapshot: product.name,
 			section_id: sectionId ?? null,
 			store_id: storeId ?? null,
-			quantity: null,
+			quantity: 1,
 			unit: null,
 			completed: false,
 			completed_at: null
@@ -156,6 +158,39 @@ class ListStore {
 			i.id === itemId ? { ...i, completed, completed_at } : i
 		);
 		syncStore.setPendingCount(await db.changes.where('synced').equals(0).count());
+	}
+
+	/**
+	 * Set a list item's quantity to an explicit value, clamped to a positive
+	 * integer floored at 1. Persists through the shared updateListItem op (which
+	 * records a sync change) and updates this.items immutably, mirroring
+	 * toggleItem. No-op if the clamped value equals the current effective value.
+	 */
+	async setItemQuantity(itemId: string, quantity: number): Promise<void> {
+		const item = this.items.find((i) => i.id === itemId);
+		if (!item) return;
+
+		const next = clampQuantity(quantity);
+		if (next === effectiveQuantity(item.quantity)) return;
+
+		try {
+			await updateListItem(itemId, { quantity: next });
+			this.items = this.items.map((i) => (i.id === itemId ? { ...i, quantity: next } : i));
+			syncStore.setPendingCount(await db.changes.where('synced').equals(0).count());
+		} catch (err) {
+			console.error('Failed to set item quantity:', err);
+			toastStore.error('Could not update quantity. Please try again.');
+		}
+	}
+
+	/**
+	 * Adjust a list item's quantity by a delta (e.g. +1 / -1), treating a null
+	 * quantity as 1 and flooring the result at 1. Decrementing at 1 is a no-op.
+	 */
+	async adjustItemQuantity(itemId: string, delta: number): Promise<void> {
+		const item = this.items.find((i) => i.id === itemId);
+		if (!item) return;
+		await this.setItemQuantity(itemId, adjustQuantity(item.quantity, delta));
 	}
 
 	async refresh(): Promise<void> {

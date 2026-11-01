@@ -6,6 +6,7 @@
 	import { uiStore } from '$lib/stores/ui.svelte';
 	import { preferencesStore } from '$lib/stores/preferences.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
+	import QuantityControl from '$lib/components/QuantityControl.svelte';
 	import { db } from '$lib/db/database';
 	import { getActiveEntities, createList, updateProduct, updateList, createSectionAtEnd, createStoreAtEnd, updateListItem, moveEntityToGroupEnd } from '$lib/db/operations';
 	import { compareSortKeys, sortKeyAfter, planReorder } from '$lib/utils/ordering';
@@ -603,6 +604,18 @@
 										{product.name}
 									</span>
 								</button>
+								<!-- Quantity badge + inline control (on-list items only).
+								     Distinct hit area; does not toggle the product on/off. -->
+								{#if onList}
+									{@const listItem = listStore.items.find((i) => i.product_id === product.id)}
+									{#if listItem}
+										<QuantityControl
+											quantity={listItem.quantity}
+											onAdjust={(delta) => listStore.adjustItemQuantity(listItem.id, delta)}
+											label={product.name}
+										/>
+									{/if}
+								{/if}
 								<!-- Edit button -->
 								<button
 									onclick={() => openEditSheet(product)}
