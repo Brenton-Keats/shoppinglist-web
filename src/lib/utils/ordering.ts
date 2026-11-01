@@ -69,6 +69,30 @@ export function compareSortKeys(a: string | null | undefined, b: string | null |
 }
 
 /**
+ * Compare two SECTION (or store) group keys for display ordering, forcing the
+ * "unassigned" bucket (a null/empty key) to sort LAST — matching the grouping
+ * used by shop mode (`view-modes/grouping.ts` `compareGroups`). This is the
+ * single ordering contract shared by the list view and shop mode (Item 10).
+ *
+ * Note this differs from `compareSortKeys` only for the null case: there a null
+ * key already sorts last, but callers that map "no section" to a sentinel must
+ * route through this so both views agree. For non-null keys it is identical to
+ * `compareSortKeys` (lexicographic over fractional keys — never numeric
+ * subtraction, which yields NaN on string keys and leaves insertion order).
+ */
+export function compareSectionSortKeys(
+	a: string | null | undefined,
+	b: string | null | undefined
+): number {
+	const keyA = a === null || a === undefined || a === '' ? null : a;
+	const keyB = b === null || b === undefined || b === '' ? null : b;
+	if (keyA === null && keyB === null) return 0;
+	if (keyA === null) return 1; // unassigned last
+	if (keyB === null) return -1;
+	return compareSortKeys(keyA, keyB);
+}
+
+/**
  * A planned write: assign `sort_order` to the row with `id`.
  */
 export interface SortKeyAssignment {

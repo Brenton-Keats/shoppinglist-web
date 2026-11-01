@@ -17,7 +17,7 @@
 	import type { SuggestedProduct } from '$lib/meals/suggested';
 	import { db } from '$lib/db/database';
 	import { getActiveEntities, createList, updateProduct, updateList, createSectionAtEnd, createStoreAtEnd, updateListItem, moveEntityToGroupEnd } from '$lib/db/operations';
-	import { compareSortKeys, sortKeyAfter, planReorder } from '$lib/utils/ordering';
+	import { compareSortKeys, compareSectionSortKeys, sortKeyAfter, planReorder } from '$lib/utils/ordering';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import type { Product, Section, Store, List, ListItem } from '$lib/types';
 
@@ -145,13 +145,16 @@
 			});
 		}
 
-		// Sort sections by sort_order
+		// Sort sections by their fractional sort_order. The keys are STRING
+		// fractional indexes, so they MUST be compared with compareSectionSortKeys
+		// (lexicographic, unassigned-last) — the same contract shop mode uses
+		// (view-modes/grouping.ts). The previous `orderA - orderB` subtracted
+		// strings, producing NaN and leaving insertion order, which diverged from
+		// shop mode (Item 10).
 		const sectionOrder = new Map(allSections.map(s => [s.id, s.sort_order]));
-		const sortedKeys = [...sectionMap.keys()].sort((a, b) => {
-			const orderA = a ? (sectionOrder.get(a) ?? 999) : 999;
-			const orderB = b ? (sectionOrder.get(b) ?? 999) : 999;
-			return orderA - orderB;
-		});
+		const sortedKeys = [...sectionMap.keys()].sort((a, b) =>
+			compareSectionSortKeys(a ? sectionOrder.get(a) : null, b ? sectionOrder.get(b) : null)
+		);
 
 		for (const sectionId of sortedKeys) {
 			const section = sectionId ? allSections.find(s => s.id === sectionId) ?? null : null;
