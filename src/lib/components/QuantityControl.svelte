@@ -63,7 +63,7 @@
 		<!-- Scrim: tap away to close/commit (writes are immediate per +/-). -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<div class="fixed inset-0 z-40" onclick={close}></div>
+		<div class="fixed inset-0 z-40" data-testid="quantity-scrim" onclick={close}></div>
 		<div
 			class="absolute right-0 top-1/2 z-50 flex -translate-y-1/2 items-center gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-1 shadow-lg"
 			role="group"

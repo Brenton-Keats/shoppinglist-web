@@ -1,10 +1,14 @@
 <script lang="ts">
-	import { Home, ShoppingCart, Clock, Settings } from '@lucide/svelte';
+	import { Home, UtensilsCrossed, ShoppingCart, Clock, Settings } from '@lucide/svelte';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 
+	// Five tabs: Meals sits between List and Shop (planning precedes shopping).
+	// Five tabs is a little tight on the narrowest phones but each stays within a
+	// comfortable tap target; no existing tab is dropped.
 	const tabs = [
 		{ path: '/', label: 'List', icon: Home },
+		{ path: '/meals', label: 'Meals', icon: UtensilsCrossed },
 		{ path: '/shopping', label: 'Shop', icon: ShoppingCart },
 		{ path: '/history', label: 'History', icon: Clock },
 		{ path: '/settings', label: 'Settings', icon: Settings }
