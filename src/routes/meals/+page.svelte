@@ -469,8 +469,13 @@
 {#if pickerMealId}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<!-- svelte-ignore a11y_interactive_supports_focus -->
+	<!-- picker-sheet: Item 5 — on a coarse-pointer (mobile/touch) device the sheet
+	     anchors to the TOP so the search input sits above the soft keyboard;
+	     on desktop (fine pointer) it stays the normal bottom sheet. Scoped purely
+	     via @media (pointer: coarse) in the <style> below — no JS, no desktop
+	     change. -->
 	<div
-		class="fixed inset-0 z-[60] flex items-end"
+		class="picker-overlay fixed inset-0 z-[60] flex items-end"
 		role="dialog"
 		aria-modal="true"
 		onkeydown={(e) => { if (e.key === 'Escape') closePicker(); }}
@@ -479,7 +484,7 @@
 		<div class="absolute inset-0 bg-black/50" onclick={closePicker} transition:fade={{ duration: 200 }}></div>
 		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 		<div
-			class="relative w-full rounded-t-3xl bg-[var(--color-bg)] px-5 pt-3 pb-6"
+			class="picker-sheet relative w-full rounded-t-3xl bg-[var(--color-bg)] px-5 pt-3 pb-6"
 			style="padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)); max-height: 70vh;"
 			onclick={(e) => e.stopPropagation()}
 			transition:fly={{ y: 300, duration: 250 }}
@@ -518,3 +523,25 @@
 		</div>
 	</div>
 {/if}
+
+<style>
+	/*
+	 * Item 5 — mobile-only: on a coarse-pointer (touch) device anchor the product
+	 * picker sheet to the TOP of the screen so its search input (and the results
+	 * below it) stay visible above the soft keyboard. Desktop (fine pointer) is
+	 * untouched and keeps the bottom sheet. Pure CSS, no JS, no desktop impact.
+	 */
+	@media (pointer: coarse) {
+		.picker-overlay {
+			align-items: flex-start;
+		}
+		.picker-sheet {
+			border-top-left-radius: 0;
+			border-top-right-radius: 0;
+			border-bottom-left-radius: 1.5rem;
+			border-bottom-right-radius: 1.5rem;
+			/* Account for the app's top safe area so the input clears the status bar. */
+			padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
+		}
+	}
+</style>
