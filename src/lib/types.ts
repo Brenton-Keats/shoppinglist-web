@@ -154,4 +154,6 @@ export interface LocalPreferences {
 	syncInterval: number; // seconds
 	deviceId: string;
 	theme: 'light' | 'dark' | 'auto';
+	/** The list this device last selected; restored when the list store reloads. */
+	activeListId?: string | null;
 }

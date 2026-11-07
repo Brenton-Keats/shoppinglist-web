@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { X, ChevronUp, ChevronDown, ChevronRight, Plus, Archive, Pencil, Check } from '@lucide/svelte';
+	import { X, ChevronUp, ChevronDown, ChevronRight, Plus, Archive, Pencil, Check, Trash2 } from '@lucide/svelte';
 	import { fly, fade } from 'svelte/transition';
 	import { listStore } from '$lib/stores/list.svelte';
 	import { mealStore } from '$lib/stores/meal.svelte';
@@ -17,8 +17,9 @@
 	} from '$lib/meals/suggested-view';
 	import type { SuggestedProduct } from '$lib/meals/suggested';
 	import { db } from '$lib/db/database';
-	import { getActiveEntities, createList, updateProduct, updateList, createSectionAtEnd, createStoreAtEnd, updateListItem, moveEntityToGroupEnd } from '$lib/db/operations';
-	import { compareSortKeys, compareSectionSortKeys, compareItemsForDisplay, sortKeyAfter, planReorder } from '$lib/utils/ordering';
+	import { startFreshList, switchToList, archiveSelectedList, deleteListById } from '$lib/lists/list-actions';
+	import { getActiveEntities, updateProduct, updateList, createSectionAtEnd, createStoreAtEnd, updateListItem, moveEntityToGroupEnd } from '$lib/db/operations';
+	import { compareSortKeys, compareSectionSortKeys, compareItemsForDisplay, planReorder } from '$lib/utils/ordering';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import type { Product, Section, Store, List, ListItem } from '$lib/types';
 
@@ -208,24 +209,13 @@
 			const { getActiveList } = await import('$lib/db/queries');
 			const existing = await getActiveList();
 			if (existing) {
-				listStore.activeList = existing;
-				await listStore.loadListData(existing.id);
+				await listStore.selectList(existing);
 				return;
 			}
-			const list = await createList({
-				name: 'Shopping List',
-				status: 'ACTIVE',
-				sort_order: sortKeyAfter(null),
-				started_at: new Date().toISOString(),
-				archived_at: null
-			});
-			listStore.activeList = list;
-			await listStore.loadListData(list.id);
 			// Genuinely-new list → auto-select the usuals (see ensureUsualsSelected
 			// trigger policy). Done only on creation, never on adopting an existing
 			// list, so a per-list opt-out of a usual is never resurrected.
-			await mealStore.ensureUsualsSelected(list.id);
-			await mealStore.loadSelections(list.id);
+			await startFreshList();
 		}
 	}
 
@@ -253,12 +243,12 @@
 	function closeListSheet() {
 		showListSheet = false;
 		uiStore.dialogOpen = false;
+		confirmDeleteListId = null;
 		cancelEditList();
 	}
 
-	async function switchToList(list: List) {
-		listStore.activeList = list;
-		await listStore.loadListData(list.id);
+	async function handleSwitchToList(list: List) {
+		await switchToList(list);
 		closeListSheet();
 	}
 
@@ -297,65 +287,23 @@
 		}
 	}
 
+	// "New List" only creates a list; it never archives the current one.
 	async function createNewList() {
-		// Only archive current list if it has items
-		if (listStore.activeList && listStore.items.length > 0) {
-			await updateList(listStore.activeList.id, {
-				status: 'ARCHIVED',
-				archived_at: new Date().toISOString()
-			});
-		} else if (listStore.activeList && listStore.items.length === 0) {
-			// Empty list — just keep using it, nothing to do
-			closeListSheet();
-			return;
-		}
-
-		// Create new active list
-		const list = await createList({
-			name: 'Shopping List',
-			status: 'ACTIVE',
-			sort_order: sortKeyAfter(null),
-			started_at: new Date().toISOString(),
-			archived_at: null
-		});
-
-		listStore.activeList = list;
-		await listStore.loadListData(list.id);
-		// New list → auto-select the usuals (trigger policy: creation only).
-		await mealStore.ensureUsualsSelected(list.id);
-		await mealStore.loadSelections(list.id);
+		await startFreshList();
 		closeListSheet();
 	}
 
 	async function archiveCurrentList() {
-		if (!listStore.activeList) return;
-
-		// Don't archive an empty list — just ignore
-		if (listStore.items.length === 0) {
-			closeListSheet();
-			return;
-		}
-
-		await updateList(listStore.activeList.id, {
-			status: 'ARCHIVED',
-			archived_at: new Date().toISOString()
-		});
-
-		// Create a fresh list
-		const list = await createList({
-			name: 'Shopping List',
-			status: 'ACTIVE',
-			sort_order: sortKeyAfter(null),
-			started_at: new Date().toISOString(),
-			archived_at: null
-		});
-
-		listStore.activeList = list;
-		await listStore.loadListData(list.id);
-		// New list → auto-select the usuals (trigger policy: creation only).
-		await mealStore.ensureUsualsSelected(list.id);
-		await mealStore.loadSelections(list.id);
+		await archiveSelectedList();
 		closeListSheet();
+	}
+
+	let confirmDeleteListId = $state<string | null>(null);
+
+	async function deleteList(id: string) {
+		confirmDeleteListId = null;
+		await deleteListById(id);
+		await loadLists();
 	}
 
 	onMount(async () => {
@@ -924,9 +872,15 @@
 							</button>
 						</div>
 					{:else}
-						<div class="flex w-full items-center gap-1 rounded-lg {isCurrent ? 'bg-[var(--color-primary)]/10' : 'active:bg-[var(--color-surface)]'}">
+						<div
+							data-testid="list-row"
+							data-list-id={list.id}
+							data-list-name={list.name}
+							data-current={isCurrent}
+							data-status={list.status}
+							class="flex w-full items-center gap-1 rounded-lg {isCurrent ? 'bg-[var(--color-primary)]/10' : 'active:bg-[var(--color-surface)]'}">
 							<button
-								onclick={() => switchToList(list)}
+								onclick={() => handleSwitchToList(list)}
 								class="flex flex-1 min-w-0 items-center gap-3 px-3 py-3 text-left"
 							>
 								<div class="flex-1 min-w-0">
@@ -954,6 +908,34 @@
 							>
 								<Pencil size={14} />
 							</button>
+							{#if confirmDeleteListId === list.id}
+								<span class="text-xs text-[var(--color-error)]">Delete?</span>
+								<button
+									onclick={() => deleteList(list.id)}
+									class="flex shrink-0 items-center justify-center rounded-full p-2 text-[var(--color-error)] active:bg-[var(--color-border)]"
+									style="min-height: 36px; min-width: 36px;"
+									aria-label={`Confirm delete ${list.name}`}
+								>
+									<Check size={14} />
+								</button>
+								<button
+									onclick={() => (confirmDeleteListId = null)}
+									class="flex shrink-0 items-center justify-center rounded-full p-2 text-[var(--color-text-secondary)] active:bg-[var(--color-border)]"
+									style="min-height: 36px; min-width: 36px;"
+									aria-label="Cancel delete"
+								>
+									<X size={14} />
+								</button>
+							{:else}
+								<button
+									onclick={() => (confirmDeleteListId = list.id)}
+									class="flex shrink-0 items-center justify-center rounded-full p-2 text-[var(--color-text-secondary)] active:bg-[var(--color-border)]"
+									style="min-height: 36px; min-width: 36px;"
+									aria-label={`Delete ${list.name}`}
+								>
+									<Trash2 size={14} />
+								</button>
+							{/if}
 						</div>
 					{/if}
 				{/each}
@@ -966,7 +948,7 @@
 						class="flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-3 text-sm font-medium text-[var(--color-text-secondary)] active:bg-[var(--color-border)]"
 					>
 						<Archive size={16} />
-						Archive current & start new
+						Archive current
 					</button>
 				</div>
 			{/if}

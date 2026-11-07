@@ -2,7 +2,9 @@ import type { List, ListItem, Product, Section, Store } from '$lib/types';
 import { db } from '$lib/db/database';
 import {
 	getActiveList,
-	getItemsByList
+	getItemsByList,
+	getLocalPreferences,
+	saveLocalPreferences
 } from '$lib/db/queries';
 import {
 	createProductAtEnd,
@@ -43,7 +45,7 @@ class ListStore {
 	async loadActiveList(): Promise<void> {
 		this.loading = true;
 		try {
-			const list = await getActiveList();
+			const list = await this.resolveSelectedList();
 			this.activeList = list ?? null;
 
 			if (list) {
@@ -57,6 +59,27 @@ class ListStore {
 		} finally {
 			this.loading = false;
 		}
+	}
+
+	/**
+	 * The list the user last selected on this device, falling back to any ACTIVE
+	 * list. Without the persisted choice, every reload (tab change, sync) picked
+	 * an arbitrary ACTIVE list and silently switched the user's selection.
+	 */
+	private async resolveSelectedList(): Promise<List | undefined> {
+		const { activeListId } = await getLocalPreferences();
+		if (activeListId) {
+			const saved = await db.lists.get(activeListId);
+			if (saved && !saved.deleted_at) return saved;
+		}
+		return getActiveList();
+	}
+
+	/** Make `list` the selected list and persist the choice across reloads. */
+	async selectList(list: List): Promise<void> {
+		this.activeList = list;
+		await this.loadListData(list.id);
+		await saveLocalPreferences({ activeListId: list.id });
 	}
 
 	async loadListData(listId: string): Promise<void> {
